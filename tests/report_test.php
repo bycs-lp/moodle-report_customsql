@@ -184,6 +184,7 @@ final class report_test extends \advanced_testcase {
     public function test_report_customsql_runable_options(): void {
         $options = [
             'manual'  => get_string('manual', 'report_customsql'),
+            'manual_async' => get_string('manual_async', 'report_customsql'),
             'daily'   => get_string('automaticallydaily', 'report_customsql'),
             'weekly'  => get_string('automaticallyweekly', 'report_customsql'),
             'monthly' => get_string('automaticallymonthly', 'report_customsql'),

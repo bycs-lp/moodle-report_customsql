@@ -53,6 +53,15 @@ function report_customsql_execute_query($sql, $params = null, $limitnum = null) 
         }
     }
 
+    // Check if the SQL already contains a LIMIT clause.
+    // If it does, we don't add another one to avoid SQL errors.
+    $haslimit = preg_match('/\bLIMIT\s+\d+/i', $sql);
+
+    if ($haslimit) {
+        // Query already has LIMIT, execute without adding another one.
+        return $DB->get_recordset_sql($sql, $params);
+    }
+
     // Note: throws Exception if there is an error.
     return $DB->get_recordset_sql($sql, $params, 0, $limitnum);
 }
@@ -67,7 +76,8 @@ function report_customsql_execute_query($sql, $params = null, $limitnum = null) 
 function report_customsql_prepare_sql($report, $timenow) {
     global $USER;
     $sql = $report->querysql;
-    if ($report->runable != 'manual') {
+    // Only scheduled reports (daily/weekly/monthly) need time token substitution.
+    if (in_array($report->runable, ['daily', 'weekly', 'monthly'])) {
         [$end, $start] = report_customsql_get_starts($report, $timenow);
         $sql = report_customsql_substitute_time_tokens($sql, $start, $end);
     }
@@ -191,8 +201,8 @@ function report_customsql_generate_csv($report, $timenow, $returnheaderwhenempty
     $updaterecord->lastexecutiontime = round((microtime(true) - $starttime) * 1000);
     $DB->update_record('report_customsql_queries', $updaterecord);
 
-    // Report is runable daily, weekly or monthly.
-    if ($report->runable != 'manual') {
+    // For scheduled reports (daily, weekly, monthly), handle email and customdir export.
+    if (in_array($report->runable, ['daily', 'weekly', 'monthly'])) {
         if ($csvfilenames) {
             foreach ($csvfilenames as $csvfilename) {
                 if (!empty($report->emailto)) {
@@ -232,7 +242,8 @@ function report_customsql_is_integer($value) {
  * @return array [filename, current timestamp].
  */
 function report_customsql_csv_filename($report, $timenow) {
-    if ($report->runable == 'manual') {
+    // Manual and manual_async reports use temporary files.
+    if (in_array($report->runable, ['manual', 'manual_async'])) {
         return report_customsql_temp_cvs_name($report->id, $timenow);
     } else if ($report->singlerow) {
         return report_customsql_accumulating_cvs_name($report->id);
@@ -293,7 +304,8 @@ function report_customsql_accumulating_cvs_name($reportid) {
  */
 function report_customsql_get_archive_times($report) {
     global $CFG;
-    if ($report->runable == 'manual' || $report->singlerow) {
+    // Manual and manual_async reports don't have archives; singlerow reports accumulate.
+    if (in_array($report->runable, ['manual', 'manual_async']) || $report->singlerow) {
         return [];
     }
     $files = glob($CFG->dataroot . '/admin_report_customsql/' . $report->id . '/*.csv');
@@ -390,10 +402,14 @@ function report_customsql_capability_options() {
  */
 function report_customsql_runable_options($type = null) {
     if ($type === 'manual') {
-        return ['manual' => get_string('manual', 'report_customsql')];
+        return [
+            'manual' => get_string('manual', 'report_customsql'),
+            'manual_async' => get_string('manual_async', 'report_customsql'),
+        ];
     }
     return [
         'manual' => get_string('manual', 'report_customsql'),
+        'manual_async' => get_string('manual_async', 'report_customsql'),
         'daily' => get_string('automaticallydaily', 'report_customsql'),
         'weekly' => get_string('automaticallyweekly', 'report_customsql'),
         'monthly' => get_string('automaticallymonthly', 'report_customsql'),

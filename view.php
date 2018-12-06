@@ -64,6 +64,101 @@ require_capability($report->capability ?? 'moodle/site:config', $context);
 
 report_customsql_log_view($id);
 
+// Handle background execution mode for manual_async reports.
+if ($report->runable === 'manual_async' && has_capability('report/customsql:executebackground', $context)) {
+    $executionmode = optional_param('mode', 'background', PARAM_ALPHA);
+
+    if ($executionmode === 'background') {
+        // Queue the report for background execution.
+        require_once(dirname(__FILE__) . '/classes/local/execution_manager.php');
+
+        try {
+            // Check if user has reached concurrent execution limit.
+            \report_customsql\local\execution_manager::check_execution_limit($USER->id);
+
+            // Allow query parameters to be entered if required.
+            $paramvalues = [];
+            if (!empty($report->queryparams)) {
+                $queryparams = report_customsql_get_query_placeholders_and_field_names($report->querysql);
+
+                // Get any query param values that are given in the URL.
+                foreach ($queryparams as $queryparam => $notused) {
+                    $value = optional_param($queryparam, null, PARAM_RAW);
+                    if ($value !== null && $value !== '') {
+                        $paramvalues[$queryparam] = $value;
+                    }
+                }
+
+                // If not all parameters provided, show the form.
+                if (count($paramvalues) < count($queryparams)) {
+                    $relativeurl = 'view.php?id=' . $id;
+                    $mform = new report_customsql_view_form(report_customsql_url($relativeurl), $queryparams);
+                    $formdefaults = [];
+                    if ($report->queryparams) {
+                        foreach (unserialize($report->queryparams) as $queryparam => $defaultvalue) {
+                            $formdefaults[$queryparams[$queryparam]] = $defaultvalue;
+                        }
+                    }
+                    $mform->set_data($formdefaults);
+
+                    if ($mform->is_cancelled()) {
+                        redirect(report_customsql_url('index.php'));
+                    }
+
+                    if ($newreport = $mform->get_data()) {
+                        foreach ($queryparams as $queryparam => $formparam) {
+                            $paramvalues[$queryparam] = $newreport->{$formparam};
+                        }
+                    } else {
+                        // Show form.
+                        echo $OUTPUT->header();
+                        echo $OUTPUT->heading(format_string($report->displayname));
+                        if (!html_is_blank($report->description)) {
+                            echo html_writer::tag('p', format_text($report->description, FORMAT_HTML));
+                        }
+                        echo html_writer::tag('p', get_string('executionmode_background_info', 'report_customsql'));
+                        $mform->display();
+                        echo $OUTPUT->footer();
+                        die;
+                    }
+                }
+            }
+
+            // Create background execution.
+            $executionid = \report_customsql\local\execution_manager::create_background_execution(
+                $report->id,
+                $USER->id,
+                $paramvalues
+            );
+
+            // Show confirmation message and link to executions page.
+            echo $OUTPUT->header();
+            echo $OUTPUT->heading(format_string($report->displayname));
+            echo $OUTPUT->notification(get_string('executionqueued', 'report_customsql'), 'success');
+            echo html_writer::tag('p', get_string('executionqueued_info', 'report_customsql'));
+
+            $executionsurl = new moodle_url('/report/customsql/executions.php', ['queryid' => $report->id]);
+            echo html_writer::tag('p', html_writer::link(
+                $executionsurl,
+                get_string('viewexecutions', 'report_customsql'),
+                ['class' => 'btn btn-primary']
+            ));
+
+            echo $output->render_report_actions($report, $category, $context);
+            echo $OUTPUT->footer();
+            die;
+        } catch (Exception $e) {
+            throw new moodle_exception(
+                'queuefailed',
+                'report_customsql',
+                report_customsql_url('view.php?id=' . $id),
+                $e->getMessage()
+            );
+        }
+    }
+    // If mode=live, fall through to normal execution below.
+}
+
 // We don't want slow reports blocking the session in other tabs.
 \core\session\manager::write_close();
 
@@ -185,7 +280,8 @@ if (is_null($csvtimestamp)) {
     } else {
         $handle = fopen($csvfilename, 'r');
 
-        if ($report->runable != 'manual' && !$report->singlerow) {
+        // Show timestamp header only for scheduled reports (not manual/manual_async).
+        if (!in_array($report->runable, ['manual', 'manual_async']) && !$report->singlerow) {
             echo $OUTPUT->heading(get_string(
                 'reportfor',
                 'report_customsql',
@@ -267,7 +363,8 @@ if (!empty($queryparams)) {
 
 echo $output->render_report_actions($report, $category, $context);
 
-if ($report->runable != 'manual') {
+// Show archived versions only for scheduled reports (not manual/manual_async).
+if (!in_array($report->runable, ['manual', 'manual_async'])) {
     echo $OUTPUT->heading(get_string('archivedversions', 'report_customsql'), 3);
 
     $archivetimes = report_customsql_get_archive_times($report);

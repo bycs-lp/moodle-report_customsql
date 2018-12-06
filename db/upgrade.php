@@ -298,5 +298,47 @@ function xmldb_report_customsql_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2021111600, 'report', 'customsql');
     }
 
+    // Version 2025101800 - Add background execution support.
+    if ($oldversion < 2025101800) {
+        // Define table report_customsql_executions to be created.
+        $table = new xmldb_table('report_customsql_executions');
+
+        // Adding fields to table report_customsql_executions.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('queryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('executionmode', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'live');
+        $table->add_field('status', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'pending');
+        $table->add_field('filename', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('filesize', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('rowsreturned', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('executiontime', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('errormessage', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('queryparams', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timestarted', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('timecompleted', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('cancelled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table report_customsql_executions.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        // Adding indexes to table report_customsql_executions.
+        $table->add_index('queryid', XMLDB_INDEX_NOTUNIQUE, ['queryid']);
+        $table->add_index('userid', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        $table->add_index('status', XMLDB_INDEX_NOTUNIQUE, ['status']);
+        $table->add_index('status_timecreated', XMLDB_INDEX_NOTUNIQUE, ['status', 'timecreated']);
+        $table->add_index('query_user_time', XMLDB_INDEX_NOTUNIQUE, ['queryid', 'userid', 'timecreated']);
+        $table->add_index('timecreated', XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+
+        // Conditionally launch create table for report_customsql_executions.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Save point reached.
+        upgrade_plugin_savepoint(true, 2025101800, 'report', 'customsql');
+    }
+
     return true;
 }

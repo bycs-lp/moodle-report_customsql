@@ -57,6 +57,15 @@ class query {
     }
 
     /**
+     * Check if query supports background execution.
+     *
+     * @return bool True if background execution is enabled for this query.
+     */
+    public function supports_background_execution(): bool {
+        return $this->record->runable === 'manual_async';
+    }
+
+    /**
      * Get url to view query.
      *
      * @return moodle_url View url.

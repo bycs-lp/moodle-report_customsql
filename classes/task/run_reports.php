@@ -82,12 +82,12 @@ class run_reports extends \core\task\scheduled_task {
         $reportstorun = array_merge($dailyreportstorun, $scheduledreportstorun);
 
         foreach ($reportstorun as $report) {
-            mtrace("... Running report " . report_customsql_plain_text_report_name($report));
+            mtrace("... Queuing scheduled report: " . report_customsql_plain_text_report_name($report));
             try {
-                report_customsql_generate_csv($report, $timenow);
+                $this->queue_scheduled_report_execution($report, $timenow);
             } catch (\Exception $e) {
                 $info = get_exception_info($e);
-                mtrace("... REPORT FAILED " . $info->message);
+                mtrace("... FAILED to queue report: " . $info->message);
                 if (!empty($info->debuginfo)) {
                     mtrace("\nDebug info: $info->debuginfo");
                 }
@@ -96,5 +96,47 @@ class run_reports extends \core\task\scheduled_task {
                 }
             }
         }
+    }
+
+    /**
+     * Queue a scheduled report for execution via adhoc task.
+     *
+     * @param stdClass $report The report record
+     * @param int $timenow Current timestamp
+     * @return void
+     * @throws dml_exception
+     */
+    private function queue_scheduled_report_execution(\stdClass $report, int $timenow): void {
+        global $DB;
+
+        // Get admin user for scheduled executions.
+        $adminuser = get_admin();
+        if (!$adminuser) {
+            throw new \moodle_exception('noadminuser', 'error');
+        }
+
+        // Create execution record.
+        $execution = new \stdClass();
+        $execution->queryid = $report->id;
+        $execution->userid = $adminuser->id;
+        $execution->status = 'queued';
+        $execution->timecreated = $timenow;
+        $execution->queryparams = !empty($report->queryparams) ? $report->queryparams : json_encode([]);
+        $execution->cancelled = 0;
+
+        $executionid = $DB->insert_record('report_customsql_executions', $execution);
+
+        // Queue Adhoc Task.
+        $task = new \report_customsql\task\execute_query_adhoc();
+        $task->set_custom_data((object)[
+            'executionid' => $executionid,
+        ]);
+
+        // Set fail delay for retry logic.
+        $task->set_fail_delay(300); // 5 minutes.
+
+        \core\task\manager::queue_adhoc_task($task);
+
+        mtrace("    → Execution ID: $executionid queued as adhoc task");
     }
 }

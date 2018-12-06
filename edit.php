@@ -147,7 +147,8 @@ if ($newreport = $mform->get_data()) {
     }
 
     report_customsql_log_edit($id);
-    if ($newreport->runable == 'manual') {
+    // Redirect manual and manual_async reports to view.php so user can run/queue them.
+    if (in_array($newreport->runable, ['manual', 'manual_async'])) {
         redirect(report_customsql_url('view.php?id=' . $id));
     } else if ($returnurl) {
         redirect($returnurl);

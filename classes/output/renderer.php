@@ -41,6 +41,8 @@ class renderer extends plugin_renderer_base {
     public function render_report_actions(stdClass $report, stdClass $category, context $context): string {
         $editaction = null;
         $deleteaction = null;
+        $runbackgroundaction = null;
+
         if (has_capability('report/customsql:definequeries', $context)) {
             $reporturl = report_customsql_url('view.php', ['id' => $report->id]);
             $editaction = $this->action_link(
@@ -55,6 +57,18 @@ class renderer extends plugin_renderer_base {
             );
         }
 
+        // Add "Run in background" link for manual_async reports.
+        if ($report->runable === 'manual_async' && has_capability('report/customsql:executebackground', $context)) {
+            $runbackgroundaction = $this->action_link(
+                report_customsql_url('execution_action.php', [
+                    'action' => 'run',
+                    'queryid' => $report->id,
+                    'returnurl' => report_customsql_url('view.php', ['id' => $report->id])->out_as_local_url(false),
+                ]),
+                $this->pix_icon('t/play', '') . ' ' . get_string('runinbackground', 'report_customsql')
+            );
+        }
+
         $backtocategoryaction = $this->action_link(
             report_customsql_url('category.php', ['id' => $category->id]),
             $this->pix_icon('t/left', '') .
@@ -64,9 +78,21 @@ class renderer extends plugin_renderer_base {
         $context = [
                 'editaction' => $editaction,
                 'deleteaction' => $deleteaction,
+                'runbackgroundaction' => $runbackgroundaction,
                 'backtocategoryaction' => $backtocategoryaction,
         ];
 
         return $this->render_from_template('report_customsql/query_actions', $context);
+    }
+
+    /**
+     * Render the executions page.
+     *
+     * @param executions_page $page The executions page renderable
+     * @return string HTML output
+     */
+    protected function render_executions_page(executions_page $page): string {
+        $data = $page->export_for_template($this);
+        return $this->render_from_template('report_customsql/executions_page', $data);
     }
 }

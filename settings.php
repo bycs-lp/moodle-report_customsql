@@ -62,6 +62,44 @@ if ($ADMIN->fulltree) {
         null,
         10
     ));
+
+    // Background execution settings.
+    $settings->add(new admin_setting_heading(
+        'report_customsql/backgroundexecutionheading',
+        get_string('backgroundexecutionsettings', 'report_customsql'),
+        get_string('backgroundexecutionsettings_desc', 'report_customsql')
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'report_customsql/maxconcurrentexecutions',
+        get_string('maxconcurrentexecutions', 'report_customsql'),
+        get_string('maxconcurrentexecutions_desc', 'report_customsql'),
+        5,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'report_customsql/maxuserexecutions',
+        get_string('maxuserexecutions', 'report_customsql'),
+        get_string('maxuserexecutions_desc', 'report_customsql'),
+        3,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'report_customsql/executionretentiondays',
+        get_string('executionretentiondays', 'report_customsql'),
+        get_string('executionretentiondays_desc', 'report_customsql'),
+        30,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'report_customsql/enablebackgroundexecution',
+        get_string('enablebackgroundexecution', 'report_customsql'),
+        get_string('enablebackgroundexecution_desc', 'report_customsql'),
+        1
+    ));
 }
 
 $ADMIN->add('reports', new admin_externalpage(

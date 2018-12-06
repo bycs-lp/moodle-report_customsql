@@ -15,44 +15,30 @@
     along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 }}
 {{!
-    @template report_customsql/index_page
+    @template report_customsql/executions_stats
 
-    Moodle template for the list of valid options in an autocomplate form element.
-
-    Classes required for JS:
-    * none
-
-    Data attributes required for JS:
-    * none
+    Template for execution statistics display.
 
     Context variables required for this template:
-    * none
+    * title - string, statistics section title
+    * items - array of statistics items with label and value
 
     Example context (json):
     {
-      "expandable": true,
-      "expandcollapselinkattheend": true,
-      "categories": []
+        "title": "Queue Statistics",
+        "items": [
+            {"label": "Total Executions", "value": "42"},
+            {"label": "Queued Executions", "value": "5"}
+        ]
     }
 }}
-{{#expandable}}
-    {{>report_customsql/expand_collapse_link}}
-{{/expandable}}
 
-{{#categories}}
-    {{{category}}}
-{{/categories}}
-
-{{#expandcollapselinkattheend}}
-    {{>report_customsql/expand_collapse_link}}
-{{/expandcollapselinkattheend}}
-
-{{{addquerybutton}}}
-{{{managecategorybutton}}}
-{{{manageexecutionsbutton}}}
-
-{{#js}}
-    require(['report_customsql/reportcategories'], function(reportcategories) {
-        reportcategories.init();
-    });
-{{/js}}
+<div class="execution-stats mb-3">
+    <h3>{{stats.title}}</h3>
+    <dl class="row">
+        {{#stats.items}}
+        <dt class="col-sm-3">{{label}}</dt>
+        <dd class="col-sm-9">{{value}}</dd>
+        {{/stats.items}}
+    </dl>
+</div>

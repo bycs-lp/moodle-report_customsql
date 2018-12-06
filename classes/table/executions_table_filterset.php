@@ -15,27 +15,39 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Message providers for report_customsql.
+ * Filterset for executions table.
  *
  * @package    report_customsql
- * @category   message
  * @copyright  2025 ISB Bayern
+ * @author     Dr. Peter Mayer
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+namespace report_customsql\table;
 
-$messageproviders = [
-    // Legacy notification messages.
-    'notification' => [
-        'capability' => 'report/customsql:view',
-    ],
-    // Successful background execution.
-    'executioncompleted' => [
-        'capability' => 'report/customsql:executebackground',
-    ],
-    // Failed background execution.
-    'executionfailed' => [
-        'capability' => 'report/customsql:executebackground',
-    ],
-];
+use core_table\local\filter\filterset;
+use core_table\local\filter\integer_filter;
+use core_table\local\filter\string_filter;
+
+/**
+ * Filterset for executions table.
+ *
+ * @package    report_customsql
+ * @copyright  2025 ISB Bayern
+ * @author     Dr. Peter Mayer
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class executions_table_filterset extends filterset {
+    /**
+     * Get the required filters.
+     *
+     * @return array Array of filter objects
+     */
+    public function get_required_filters(): array {
+        return [
+            'queryid' => integer_filter::class,
+            'status' => string_filter::class,
+            'userid' => integer_filter::class,
+        ];
+    }
+}

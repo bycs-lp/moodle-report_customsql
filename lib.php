@@ -52,6 +52,43 @@ function report_customsql_pluginfile($course, $cm, $context, $filearea, $args, $
         return false;
     }
 
+    // Handle background execution result downloads.
+    if ($filearea === 'execution') {
+        $executionid = (int)array_shift($args);
+        $filename = array_shift($args);
+
+        $execution = $DB->get_record('report_customsql_executions', ['id' => $executionid], '*', MUST_EXIST);
+        $report = $DB->get_record('report_customsql_queries', ['id' => $execution->queryid], '*', MUST_EXIST);
+
+        require_login();
+        $systemcontext = context_system::instance();
+
+        // Check capability: either user owns the execution or has viewallexecutions.
+        $canviewall = has_capability('report/customsql:viewallexecutions', $systemcontext);
+        $isowner = $execution->userid == $USER->id;
+
+        if (!$canviewall && !$isowner) {
+            throw new moodle_exception('nopermissiontodownload', 'report_customsql');
+        }
+
+        // Check report capability if set.
+        if (!empty($report->capability)) {
+            require_capability($report->capability, $systemcontext);
+        }
+
+        // Get the stored file.
+        $fs = get_file_storage();
+        $file = $fs->get_file($systemcontext->id, 'report_customsql', 'execution', $executionid, '/', $filename);
+
+        if (!$file) {
+            return false;
+        }
+
+        // Send the file.
+        send_stored_file($file, 0, 0, $forcedownload, $options);
+        return true;
+    }
+
     if ($filearea != 'download') {
         return false;
     }

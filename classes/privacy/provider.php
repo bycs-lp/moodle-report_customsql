@@ -34,13 +34,7 @@ use core_privacy\local\request;
  * @copyright  2018 The Open University
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements
-    // This plugin has data.
-    \core_privacy\local\metadata\provider,
-    // This plugin currently implements the original plugin\provider interface.
-    \core_privacy\local\request\plugin\provider,
-    \core_privacy\local\request\core_userlist_provider {
-
+class provider implements \core_privacy\local\request\core_userlist_provider, \core_privacy\local\metadata\provider, \core_privacy\local\request\plugin\provider {
     /**
      * Returns meta data about this system.
      *
@@ -194,8 +188,12 @@ class provider implements
                 $userid = $contextlist->get_user()->id;
                 $adminuserid = get_admin()->id;
 
-                $DB->set_field('report_customsql_queries', 'usermodified',
-                    $adminuserid, ['usermodified' => $userid]);
+                $DB->set_field(
+                    'report_customsql_queries',
+                    'usermodified',
+                    $adminuserid,
+                    ['usermodified' => $userid]
+                );
             }
         }
     }
@@ -213,10 +211,15 @@ class provider implements
         $context = $userlist->get_context();
         if ($context->contextlevel === CONTEXT_SYSTEM) {
             $userids = $userlist->get_userids();
-            list($sqlcondition, $params) = $DB->get_in_or_equal($userids);
+            [$sqlcondition, $params] = $DB->get_in_or_equal($userids);
             $adminuserid = get_admin()->id;
-            $DB->set_field_select('report_customsql_queries', 'usermodified', $adminuserid,
-                 'usermodified ' . $sqlcondition, $params);
+            $DB->set_field_select(
+                'report_customsql_queries',
+                'usermodified',
+                $adminuserid,
+                'usermodified ' . $sqlcondition,
+                $params
+            );
         }
     }
 

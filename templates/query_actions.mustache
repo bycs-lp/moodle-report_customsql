@@ -29,13 +29,13 @@
     {
       "editaction": "<a href='http://example.com/report/customsql/edit.php?id=6'>Edit query 'Test'</a>",
       "deleteaction": "<a href='http://example.com/report/customsql/delete.php?id=6'>Delete query 'Test'</a>",
-      "runbackgroundaction": "<a href='http://example.com/report/customsql/execution_action.php?action=run&queryid=6'>Run in background</a>",
+      "viewexecutionsaction": "<a href='http://example.com/report/customsql/executions.php?queryid=6'>View executions</a>",
       "backtocategoryaction": "<a href='http://example.com/report/customsql/category.php?id=1'>Back to category 'Miscellaneous'</a>"
     }
 }}
-{{#runbackgroundaction}}
-    <p>{{{runbackgroundaction}}}</p>
-{{/runbackgroundaction}}
+{{#viewexecutionsaction}}
+    <p>{{{viewexecutionsaction}}}</p>
+{{/viewexecutionsaction}}
 
 {{#editaction}}
     <p>{{{editaction}}}</p>

@@ -65,10 +65,13 @@ require_capability($report->capability ?? 'moodle/site:config', $context);
 report_customsql_log_view($id);
 
 // Handle background execution mode for manual_async reports.
+// Default mode is 'info' - only show query information, no automatic execution.
+// User must explicitly click a button to execute.
 if ($report->runable === 'manual_async' && has_capability('report/customsql:executebackground', $context)) {
-    $executionmode = optional_param('mode', 'background', PARAM_ALPHA);
+    $executionmode = optional_param('mode', 'info', PARAM_ALPHA);
 
-    if ($executionmode === 'background') {
+    // Only execute when user explicitly requests it with mode=execute.
+    if ($executionmode === 'execute') {
         // Queue the report for background execution.
         require_once(dirname(__FILE__) . '/classes/local/execution_manager.php');
 
@@ -76,7 +79,7 @@ if ($report->runable === 'manual_async' && has_capability('report/customsql:exec
             // Check if user has reached concurrent execution limit.
             \report_customsql\local\execution_manager::check_execution_limit($USER->id);
 
-            // Allow query parameters to be entered if required.
+            // Get query parameters from URL if any.
             $paramvalues = [];
             if (!empty($report->queryparams)) {
                 $queryparams = report_customsql_get_query_placeholders_and_field_names($report->querysql);
@@ -89,38 +92,14 @@ if ($report->runable === 'manual_async' && has_capability('report/customsql:exec
                     }
                 }
 
-                // If not all parameters provided, show the form.
+                // If not all parameters provided, redirect back to info mode with error.
                 if (count($paramvalues) < count($queryparams)) {
-                    $relativeurl = 'view.php?id=' . $id;
-                    $mform = new report_customsql_view_form(report_customsql_url($relativeurl), $queryparams);
-                    $formdefaults = [];
-                    if ($report->queryparams) {
-                        foreach (unserialize($report->queryparams) as $queryparam => $defaultvalue) {
-                            $formdefaults[$queryparams[$queryparam]] = $defaultvalue;
-                        }
-                    }
-                    $mform->set_data($formdefaults);
-
-                    if ($mform->is_cancelled()) {
-                        redirect(report_customsql_url('index.php'));
-                    }
-
-                    if ($newreport = $mform->get_data()) {
-                        foreach ($queryparams as $queryparam => $formparam) {
-                            $paramvalues[$queryparam] = $newreport->{$formparam};
-                        }
-                    } else {
-                        // Show form.
-                        echo $OUTPUT->header();
-                        echo $OUTPUT->heading(format_string($report->displayname));
-                        if (!html_is_blank($report->description)) {
-                            echo html_writer::tag('p', format_text($report->description, FORMAT_HTML));
-                        }
-                        echo html_writer::tag('p', get_string('executionmode_background_info', 'report_customsql'));
-                        $mform->display();
-                        echo $OUTPUT->footer();
-                        die;
-                    }
+                    redirect(
+                        report_customsql_url('view.php', ['id' => $id]),
+                        get_string('missingqueryparams', 'report_customsql'),
+                        null,
+                        \core\output\notification::NOTIFY_ERROR
+                    );
                 }
             }
 
@@ -131,22 +110,14 @@ if ($report->runable === 'manual_async' && has_capability('report/customsql:exec
                 $paramvalues
             );
 
-            // Show confirmation message and link to executions page.
-            echo $OUTPUT->header();
-            echo $OUTPUT->heading(format_string($report->displayname));
-            echo $OUTPUT->notification(get_string('executionqueued', 'report_customsql'), 'success');
-            echo html_writer::tag('p', get_string('executionqueued_info', 'report_customsql'));
-
+            // Redirect to executions page with success message.
             $executionsurl = new moodle_url('/report/customsql/executions.php', ['queryid' => $report->id]);
-            echo html_writer::tag('p', html_writer::link(
+            redirect(
                 $executionsurl,
-                get_string('viewexecutions', 'report_customsql'),
-                ['class' => 'btn btn-primary']
-            ));
-
-            echo $output->render_report_actions($report, $category, $context);
-            echo $OUTPUT->footer();
-            die;
+                get_string('executionqueued', 'report_customsql'),
+                null,
+                \core\output\notification::NOTIFY_SUCCESS
+            );
         } catch (Exception $e) {
             throw new moodle_exception(
                 'queuefailed',
@@ -155,6 +126,74 @@ if ($report->runable === 'manual_async' && has_capability('report/customsql:exec
                 $e->getMessage()
             );
         }
+    }
+
+    // Default mode: Show query info page with button to execute (no auto-execution).
+    if ($executionmode === 'info' || $executionmode === 'background') {
+        echo $OUTPUT->header();
+        echo $OUTPUT->heading(format_string($report->displayname));
+
+        if (!html_is_blank($report->description)) {
+            echo html_writer::tag('p', format_text($report->description, FORMAT_HTML));
+        }
+
+        // Show info about async execution mode.
+        echo $OUTPUT->notification(get_string('asyncqueryinfo', 'report_customsql'), 'info');
+
+        // Check if query has parameters.
+        $hasparams = !empty($report->queryparams);
+        if ($hasparams) {
+            $queryparams = report_customsql_get_query_placeholders_and_field_names($report->querysql);
+
+            // Show parameter form.
+            $relativeurl = 'view.php?id=' . $id . '&mode=execute';
+            $mform = new report_customsql_view_form(report_customsql_url($relativeurl), $queryparams);
+
+            // Set default values from stored query params.
+            $formdefaults = [];
+            if ($report->queryparams) {
+                foreach (unserialize($report->queryparams) as $queryparam => $defaultvalue) {
+                    $formdefaults[$queryparams[$queryparam]] = $defaultvalue;
+                }
+            }
+            $mform->set_data($formdefaults);
+
+            if ($mform->is_cancelled()) {
+                redirect(report_customsql_url('index.php'));
+            }
+
+            if ($formdata = $mform->get_data()) {
+                // Build URL with params and redirect to execute.
+                $urlparams = ['id' => $id, 'mode' => 'execute'];
+                foreach ($queryparams as $queryparam => $formparam) {
+                    $urlparams[$queryparam] = $formdata->{$formparam};
+                }
+                redirect(report_customsql_url('view.php', $urlparams));
+            }
+
+            echo html_writer::tag('p', get_string('enterparamsandrun', 'report_customsql'));
+            $mform->display();
+        } else {
+            // No parameters - show simple execute button.
+            $executeurl = report_customsql_url('view.php', ['id' => $id, 'mode' => 'execute']);
+            echo html_writer::tag('p', html_writer::link(
+                $executeurl,
+                get_string('runinbackground', 'report_customsql'),
+                ['class' => 'btn btn-primary']
+            ));
+        }
+
+        // Show link to previous executions.
+        $executionsurl = new moodle_url('/report/customsql/executions.php', ['queryid' => $report->id]);
+        echo html_writer::tag('p', html_writer::link(
+            $executionsurl,
+            get_string('viewexecutions', 'report_customsql'),
+            ['class' => 'btn btn-secondary']
+        ));
+
+        echo $output->render_report_actions($report, $category, $context);
+        echo $OUTPUT->footer();
+        die;
     }
     // If mode=live, fall through to normal execution below.
 }

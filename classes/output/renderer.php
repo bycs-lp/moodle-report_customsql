@@ -42,6 +42,7 @@ class renderer extends plugin_renderer_base {
         $editaction = null;
         $deleteaction = null;
         $runbackgroundaction = null;
+        $viewexecutionsaction = null;
 
         if (has_capability('report/customsql:definequeries', $context)) {
             $reporturl = report_customsql_url('view.php', ['id' => $report->id]);
@@ -57,15 +58,11 @@ class renderer extends plugin_renderer_base {
             );
         }
 
-        // Add "Run in background" link for manual_async reports.
-        if ($report->runable === 'manual_async' && has_capability('report/customsql:executebackground', $context)) {
-            $runbackgroundaction = $this->action_link(
-                report_customsql_url('execution_action.php', [
-                    'action' => 'run',
-                    'queryid' => $report->id,
-                    'returnurl' => report_customsql_url('view.php', ['id' => $report->id])->out_as_local_url(false),
-                ]),
-                $this->pix_icon('t/play', '') . ' ' . get_string('runinbackground', 'report_customsql')
+        // Add "View executions" link for manual_async reports.
+        if ($report->runable === 'manual_async' && has_capability('report/customsql:view', $context)) {
+            $viewexecutionsaction = $this->action_link(
+                new moodle_url('/report/customsql/executions.php', ['queryid' => $report->id]),
+                $this->pix_icon('i/report', '') . ' ' . get_string('viewexecutions', 'report_customsql')
             );
         }
 
@@ -78,7 +75,7 @@ class renderer extends plugin_renderer_base {
         $context = [
                 'editaction' => $editaction,
                 'deleteaction' => $deleteaction,
-                'runbackgroundaction' => $runbackgroundaction,
+                'viewexecutionsaction' => $viewexecutionsaction,
                 'backtocategoryaction' => $backtocategoryaction,
         ];
 

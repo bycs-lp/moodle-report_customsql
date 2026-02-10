@@ -25,7 +25,6 @@
 
 require_once(dirname(__FILE__) . '/../../config.php');
 require_once(dirname(__FILE__) . '/locallib.php');
-require_once(dirname(__FILE__) . '/classes/local/execution_manager.php');
 require_once($CFG->libdir . '/adminlib.php');
 
 $executionid = optional_param('id', 0, PARAM_INT);
@@ -51,6 +50,11 @@ if (in_array($action, ['cancel', 'delete']) && $executionid <= 0) {
 require_login();
 $context = context_system::instance();
 require_capability('report/customsql:view', $context);
+
+// Run action additionally requires executebackground capability.
+if ($action === 'run') {
+    require_capability('report/customsql:executebackground', $context);
+}
 
 // Get records based on action type.
 if ($action === 'run') {
@@ -151,10 +155,7 @@ if ($confirm && confirm_sesskey()) {
                 break;
 
             case 'run':
-                // Check execution limit before creating.
-                \report_customsql\local\execution_manager::check_execution_limit($USER->id);
-
-                // Create background execution.
+                // Create background execution (includes execution limit check internally).
                 $newexecutionid = \report_customsql\local\execution_manager::create_background_execution(
                     $queryid,
                     $USER->id,
@@ -169,7 +170,12 @@ if ($confirm && confirm_sesskey()) {
 
         redirect($returnurl, $successmsg, null, \core\output\notification::NOTIFY_SUCCESS);
     } catch (Exception $e) {
-        redirect($returnurl, get_string('error') . ': ' . $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
+        redirect(
+            $returnurl,
+            get_string('actionfailed', 'report_customsql'),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
     }
 }
 

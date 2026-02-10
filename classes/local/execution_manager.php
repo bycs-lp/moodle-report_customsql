@@ -50,13 +50,15 @@ class execution_manager {
     public static function create_background_execution(int $queryid, int $userid, array $params = []): int {
         global $DB;
 
+        // Check if background execution is enabled.
+        if (!get_config('report_customsql', 'enablebackgroundexecution')) {
+            throw new moodle_exception('backgroundexecutiondisabled', 'report_customsql');
+        }
+
         // Validate query exists.
         $query = $DB->get_record('report_customsql_queries', ['id' => $queryid], '*', MUST_EXIST);
 
-        // Check execution limit.
-        self::check_execution_limit($userid);
-
-        // Lock gegen parallele doppelte Anfragen gleicher User/Query.
+        // Lock to prevent parallel duplicate requests for the same user/query.
         $factory = \core\lock\lock_config::get_lock_factory('report_customsql');
         $lockkey = 'exec_' . $queryid . '_' . $userid;
         if (!($lock = $factory->get_lock($lockkey, 5))) {
@@ -64,7 +66,8 @@ class execution_manager {
         }
 
         try {
-            // Create execution record.
+            // Check execution limits inside the lock to avoid TOCTOU race condition.
+            self::check_execution_limit($userid);
             $execution = new stdClass();
             $execution->queryid = $queryid;
             $execution->userid = $userid;
@@ -105,8 +108,14 @@ class execution_manager {
             $maxconcurrent = 10; // Default value.
         }
 
+        // Also check per-user limit.
+        $maxuserexecutions = get_config('report_customsql', 'maxuserexecutions');
+        if ($maxuserexecutions === false) {
+            $maxuserexecutions = 3; // Default value.
+        }
+
         // Count pending and running executions for this user.
-        $count = $DB->count_records_select(
+        $usercount = $DB->count_records_select(
             'report_customsql_executions',
             'userid = :userid AND status IN (:pending, :running)',
             [
@@ -116,7 +125,21 @@ class execution_manager {
             ]
         );
 
-        if ($count >= $maxconcurrent) {
+        if ($usercount >= $maxuserexecutions) {
+            throw new moodle_exception('userexecutionlimitreached', 'report_customsql', '', $maxuserexecutions);
+        }
+
+        // Count total pending and running executions globally.
+        $totalcount = $DB->count_records_select(
+            'report_customsql_executions',
+            'status IN (:pending, :running)',
+            [
+                'pending' => 'pending',
+                'running' => 'running',
+            ]
+        );
+
+        if ($totalcount >= $maxconcurrent) {
             throw new moodle_exception('executionlimitreached', 'report_customsql', '', $maxconcurrent);
         }
     }
@@ -314,19 +337,22 @@ class execution_manager {
         );
 
         // Average execution time of last 20 successful executions for this query.
-        $sql = "SELECT AVG(executiontime) as avgtime
-                  FROM (
-                      SELECT executiontime
-                        FROM {report_customsql_executions}
-                       WHERE queryid = :queryid
-                         AND status = :status
-                         AND executiontime IS NOT NULL
-                    ORDER BY timecompleted DESC
-                       LIMIT 20
-                  ) recent";
-        $result = $DB->get_record_sql($sql, ['queryid' => $queryid, 'status' => 'completed']);
-        if ($result && $result->avgtime) {
-            $stats['avg_execution_time'] = round($result->avgtime);
+        // Using PHP to compute the average for cross-DB compatibility (LIMIT in subquery is not portable).
+        $recentexecutions = $DB->get_records_select(
+            'report_customsql_executions',
+            'queryid = :queryid AND status = :status AND executiontime IS NOT NULL',
+            ['queryid' => $queryid, 'status' => 'completed'],
+            'timecompleted DESC',
+            'executiontime',
+            0,
+            20
+        );
+        if (!empty($recentexecutions)) {
+            $total = 0;
+            foreach ($recentexecutions as $exec) {
+                $total += $exec->executiontime;
+            }
+            $stats['avg_execution_time'] = round($total / count($recentexecutions));
         }
 
         // Success rate calculation.

@@ -50,6 +50,32 @@ if ($returnurl) {
 }
 
 if (optional_param('confirm', false, PARAM_BOOL)) {
+    require_sesskey();
+
+    // Delete associated executions and their files first.
+    $executions = $DB->get_records('report_customsql_executions', ['queryid' => $id]);
+    if ($executions) {
+        $fs = get_file_storage();
+        $systemcontext = context_system::instance();
+        foreach ($executions as $execution) {
+            // Delete stored file if present.
+            if (!empty($execution->filename)) {
+                $file = $fs->get_file(
+                    $systemcontext->id,
+                    'report_customsql',
+                    'execution',
+                    $execution->id,
+                    '/',
+                    $execution->filename
+                );
+                if ($file) {
+                    $file->delete();
+                }
+            }
+        }
+        $DB->delete_records('report_customsql_executions', ['queryid' => $id]);
+    }
+
     $ok = $DB->delete_records('report_customsql_queries', ['id' => $id]);
     if (!$ok) {
         throw new moodle_exception('errordeletingreport', 'report_customsql', report_customsql_url('index.php'));

@@ -44,7 +44,7 @@
  * @return bool false if file not found, does not return if found - just send the file
  */
 function report_customsql_pluginfile($course, $cm, $context, $filearea, $args, $forcedownload, array $options = []) {
-    global $DB;
+    global $DB, $USER;
 
     require_once(dirname(__FILE__) . '/locallib.php');
 

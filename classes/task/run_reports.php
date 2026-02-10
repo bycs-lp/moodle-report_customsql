@@ -119,7 +119,8 @@ class run_reports extends \core\task\scheduled_task {
         $execution = new \stdClass();
         $execution->queryid = $report->id;
         $execution->userid = $adminuser->id;
-        $execution->status = 'queued';
+        $execution->executionmode = 'background';
+        $execution->status = 'pending';
         $execution->timecreated = $timenow;
         $execution->queryparams = !empty($report->queryparams) ? $report->queryparams : json_encode([]);
         $execution->cancelled = 0;
@@ -131,9 +132,6 @@ class run_reports extends \core\task\scheduled_task {
         $task->set_custom_data((object)[
             'executionid' => $executionid,
         ]);
-
-        // Set fail delay for retry logic.
-        $task->set_fail_delay(300); // 5 minutes.
 
         \core\task\manager::queue_adhoc_task($task);
 

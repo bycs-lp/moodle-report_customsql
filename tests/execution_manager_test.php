@@ -331,7 +331,7 @@ final class execution_manager_test extends \advanced_testcase {
             'capability' => '',
             'lastrun' => 0,
             'lastexecutiontime' => 0,
-            'runable' => 'manual',
+            'runable' => 'manual_async',
             'singlerow' => 0,
             'at' => '',
             'emailto' => '',

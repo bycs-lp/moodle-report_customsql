@@ -86,16 +86,15 @@ class cleanup_old_executions extends scheduled_task {
 
         $deletedcount = 0;
         $errorcount = 0;
+        $fs = get_file_storage();
+        $context = \context_system::instance();
 
-        require_once(dirname(__FILE__) . '/../../locallib.php');
-
+        // Batch delete: first all files, then all records at once.
+        $idstoremove = [];
         foreach ($executions as $execution) {
             try {
                 // Delete the stored file if exists.
                 if ($execution->filename) {
-                    $fs = get_file_storage();
-                    $context = \context_system::instance();
-
                     $file = $fs->get_file(
                         $context->id,
                         'report_customsql',
@@ -107,20 +106,21 @@ class cleanup_old_executions extends scheduled_task {
 
                     if ($file) {
                         $file->delete();
-                        mtrace("  Deleted file for execution {$execution->id}: {$execution->filename}");
                     }
                 }
 
-                // Delete the database record.
-                $DB->delete_records('report_customsql_executions', ['id' => $execution->id]);
-
+                $idstoremove[] = $execution->id;
                 $deletedcount++;
-                mtrace("  Deleted execution {$execution->id} (query: {$execution->queryid}, " .
-                       "status: {$execution->status}, created: " . userdate($execution->timecreated) . ")");
             } catch (\Exception $e) {
                 $errorcount++;
                 mtrace("  ERROR deleting execution {$execution->id}: " . $e->getMessage());
             }
+        }
+
+        // Batch delete records.
+        if (!empty($idstoremove)) {
+            [$insql, $inparams] = $DB->get_in_or_equal($idstoremove, SQL_PARAMS_NAMED);
+            $DB->delete_records_select('report_customsql_executions', "id $insql", $inparams);
         }
 
         mtrace("Cleanup complete: {$deletedcount} executions deleted, {$errorcount} errors.");

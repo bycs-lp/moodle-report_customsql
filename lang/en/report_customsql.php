@@ -23,6 +23,7 @@
  */
 
 $string['actions'] = 'Actions';
+$string['actionfailed'] = 'The requested action could not be completed. Please try again.';
 $string['addcategory'] = 'Add a new category';
 $string['addcategorydesc'] = 'To change a report\'s category, you must edit that report. Here you can edit category texts, delete a category or add a new category.';
 $string['addingareport'] = 'Adding an ad-hoc database query';
@@ -40,6 +41,7 @@ $string['automaticallyweekly'] = 'Scheduled, on the first day of each week';
 $string['availablereports'] = 'On-demand queries';
 $string['availableto'] = 'Available to {$a}.';
 $string['avgexecutiontime'] = 'Average execution time (last 20)';
+$string['backgroundexecutiondisabled'] = 'Background execution is currently disabled by the administrator.';
 $string['backgroundexecutions'] = 'Background executions';
 $string['backgroundexecutionsettings'] = 'Background execution settings';
 $string['backgroundexecutionsettings_desc'] = 'Configure limits and retention for background query executions.';
@@ -124,8 +126,9 @@ $string['executiondeleted'] = 'Execution has been deleted';
 $string['executionfailedmessage'] = 'Your background query execution has failed.\n\nQuery: {$a->queryname}\nError: {$a->error}\nPlease check the query and try again.';
 $string['executionfailedsmall'] = 'Query "{$a}" failed';
 $string['executionfailedsubject'] = 'Query execution failed: {$a}';
-$string['executionlimitreached'] = 'You have reached the maximum number of concurrent executions ({$a}). Please wait for some to complete.';
+$string['executionlimitreached'] = 'The global concurrent execution limit ({$a}) has been reached. Please wait for some to complete.';
 $string['executionmode_background_info'] = 'This query will run in the background and you will be notified when it completes.';
+$string['userexecutionlimitreached'] = 'You have reached the maximum number of concurrent executions ({$a}). Please wait for some to complete.';
 $string['executionqueued'] = 'Query execution queued successfully';
 $string['executionqueued_info'] = 'Your query has been queued for background execution. You will receive a notification when it completes. You can view the progress on the executions page.';
 $string['executionretentiondays'] = 'Execution retention days';
@@ -174,6 +177,7 @@ $string['onlymyexecutions'] = 'Show only my executions';
 $string['parametervalue'] = '{$a->name}: {$a->value}';
 $string['pluginname'] = 'Ad-hoc database queries';
 $string['privacy:metadata:reportcustomsqlexecutions'] = 'Background query execution records';
+$string['privacy:metadata:reportcustomsqlexecutions:cancelled'] = 'Whether the execution was cancelled by the user';
 $string['privacy:metadata:reportcustomsqlexecutions:errormessage'] = 'Error message if execution failed';
 $string['privacy:metadata:reportcustomsqlexecutions:executionmode'] = 'The mode of execution (background/live)';
 $string['privacy:metadata:reportcustomsqlexecutions:executiontime'] = 'Time taken to execute the query';

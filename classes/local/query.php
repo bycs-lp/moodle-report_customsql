@@ -139,6 +139,6 @@ class query {
      * @return bool Has capability to view or not?
      */
     public function can_view(\context $context): bool {
-        return empty($report->capability) || has_capability($report->capability, $context);
+        return empty($this->record->capability) || has_capability($this->record->capability, $context);
     }
 }

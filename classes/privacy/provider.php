@@ -81,6 +81,7 @@ class provider implements
                 'filename' => 'privacy:metadata:reportcustomsqlexecutions:filename',
                 'filesize' => 'privacy:metadata:reportcustomsqlexecutions:filesize',
                 'rows' => 'privacy:metadata:reportcustomsqlexecutions:rows',
+                'cancelled' => 'privacy:metadata:reportcustomsqlexecutions:cancelled',
                 'executiontime' => 'privacy:metadata:reportcustomsqlexecutions:executiontime',
                 'errormessage' => 'privacy:metadata:reportcustomsqlexecutions:errormessage',
                 'queryparams' => 'privacy:metadata:reportcustomsqlexecutions:queryparams',

@@ -67,11 +67,15 @@ report_customsql_log_view($id);
 // Handle background execution mode for manual_async reports.
 // Default mode is 'info' - only show query information, no automatic execution.
 // User must explicitly click a button to execute.
-if ($report->runable === 'manual_async' && has_capability('report/customsql:executebackground', $context)) {
+if ($report->runable === 'manual_async'
+    && get_config('report_customsql', 'enablebackgroundexecution')
+    && has_capability('report/customsql:executebackground', $context)) {
     $executionmode = optional_param('mode', 'info', PARAM_ALPHA);
 
     // Only execute when user explicitly requests it with mode=execute.
     if ($executionmode === 'execute') {
+        require_sesskey();
+
         // Queue the report for background execution.
         require_once(dirname(__FILE__) . '/classes/local/execution_manager.php');
 
@@ -164,7 +168,7 @@ if ($report->runable === 'manual_async' && has_capability('report/customsql:exec
 
             if ($formdata = $mform->get_data()) {
                 // Build URL with params and redirect to execute.
-                $urlparams = ['id' => $id, 'mode' => 'execute'];
+                $urlparams = ['id' => $id, 'mode' => 'execute', 'sesskey' => sesskey()];
                 foreach ($queryparams as $queryparam => $formparam) {
                     $urlparams[$queryparam] = $formdata->{$formparam};
                 }
@@ -175,7 +179,7 @@ if ($report->runable === 'manual_async' && has_capability('report/customsql:exec
             $mform->display();
         } else {
             // No parameters - show simple execute button.
-            $executeurl = report_customsql_url('view.php', ['id' => $id, 'mode' => 'execute']);
+            $executeurl = report_customsql_url('view.php', ['id' => $id, 'mode' => 'execute', 'sesskey' => sesskey()]);
             echo html_writer::tag('p', html_writer::link(
                 $executeurl,
                 get_string('runinbackground', 'report_customsql'),

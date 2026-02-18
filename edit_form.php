@@ -283,6 +283,12 @@ class report_customsql_edit_form extends moodleform {
             }
 
             if (!isset($errors['params'])) {
+                // Skip test execution for async queries — they may be long-running
+                // and will be validated at actual execution time.
+                if ($data['runable'] === 'manual_async') {
+                    return $errors;
+                }
+
                 try {
                     $rs = report_customsql_execute_query($sql, $paramvalues, 2);
 

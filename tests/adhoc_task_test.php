@@ -486,19 +486,15 @@ final class adhoc_task_test extends \advanced_testcase {
     }
 
     /**
-     * Test scheduled report execution with customdir.
+     * Helper method to create a scheduled test query and execution.
      *
-     * @covers \report_customsql\task\execute_query_adhoc::execute_with_customdir
+     * @param string $runable Schedule type.
+     * @param string $customdir Export directory, empty for file storage.
+     * @return array{queryid:int, executionid:int}
      */
-    public function test_scheduled_execution_with_customdir(): void {
-        global $DB, $USER, $CFG;
+    protected function create_scheduled_query_and_execution(string $runable, string $customdir): array {
+        global $DB, $USER;
 
-        ob_start();
-
-        // Create custom directory for testing.
-        $customdir = make_temp_directory('report_customsql_test');
-
-        // Create test query with customdir.
         $category = $DB->insert_record('report_customsql_categories', ['name' => 'Test Category']);
         $queryid = $DB->insert_record('report_customsql_queries', [
             'displayname' => 'Scheduled Test Query',
@@ -509,7 +505,7 @@ final class adhoc_task_test extends \advanced_testcase {
             'capability' => '',
             'lastrun' => 0,
             'lastexecutiontime' => 0,
-            'runable' => 'daily',
+            'runable' => $runable,
             'singlerow' => 0,
             'at' => '0',
             'emailto' => '',
@@ -521,7 +517,6 @@ final class adhoc_task_test extends \advanced_testcase {
             'timemodified' => time(),
         ]);
 
-        // Create execution record.
         $executionid = $DB->insert_record('report_customsql_executions', [
             'queryid' => $queryid,
             'userid' => $USER->id,
@@ -530,6 +525,29 @@ final class adhoc_task_test extends \advanced_testcase {
             'timecreated' => time(),
             'cancelled' => 0,
         ]);
+
+        return [
+            'queryid' => $queryid,
+            'executionid' => $executionid,
+        ];
+    }
+
+    /**
+     * Test scheduled report execution with customdir.
+     *
+     * @covers \report_customsql\task\execute_query_adhoc::execute_with_customdir
+     */
+    public function test_scheduled_execution_with_customdir(): void {
+        global $DB, $CFG;
+
+        ob_start();
+
+        // Create custom directory for testing.
+        $customdir = make_temp_directory('report_customsql_test');
+
+        $data = $this->create_scheduled_query_and_execution('daily', $customdir);
+        $queryid = $data['queryid'];
+        $executionid = $data['executionid'];
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -564,42 +582,13 @@ final class adhoc_task_test extends \advanced_testcase {
      * @covers \report_customsql\task\execute_query_adhoc::execute_with_filestorage
      */
     public function test_scheduled_execution_with_filestorage(): void {
-        global $DB, $USER;
+        global $DB;
 
         ob_start();
 
-        // Create test query without customdir (scheduled but no customdir).
-        $category = $DB->insert_record('report_customsql_categories', ['name' => 'Test Category']);
-        $queryid = $DB->insert_record('report_customsql_queries', [
-            'displayname' => 'Scheduled Test Query',
-            'description' => 'Test scheduled query',
-            'querysql' => 'SELECT id, username FROM {user} LIMIT 2',
-            'queryparams' => '',
-            'querylimit' => 5000,
-            'capability' => '',
-            'lastrun' => 0,
-            'lastexecutiontime' => 0,
-            'runable' => 'weekly',
-            'singlerow' => 0,
-            'at' => '0',
-            'emailto' => '',
-            'emailwhat' => '',
-            'categoryid' => $category,
-            'customdir' => '', // No customdir - should use file storage.
-            'usermodified' => $USER->id,
-            'timecreated' => time(),
-            'timemodified' => time(),
-        ]);
-
-        // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $data = $this->create_scheduled_query_and_execution('weekly', '');
+        $queryid = $data['queryid'];
+        $executionid = $data['executionid'];
 
         // Execute task.
         $task = new execute_query_adhoc();

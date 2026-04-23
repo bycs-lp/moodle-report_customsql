@@ -52,9 +52,9 @@
 
 <div class="executions-filters card mb-3">
     <div class="card-body">
-        <h4>{{filters.title}}</h4>
+        {{#filters.title}}<h4>{{filters.title}}</h4>{{/filters.title}}
 
-        <form method="get" action="{{filters.formaction}}" class="form-inline">
+        <form method="get"{{#filters.formaction}} action="{{filters.formaction}}"{{/filters.formaction}} class="form-inline">
             {{! Query filter }}
             <div class="form-group mr-2">
                 <label for="id_queryid" class="mr-2">{{filters.querylabel}}</label>

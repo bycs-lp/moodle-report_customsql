@@ -312,7 +312,7 @@ Feature: Ad-hoc database queries report
       | querysql    | SELECT * FROM {user} WHERE id = 2 LIMIT 5  |
       | runable     | manual_async                               |
     When I log in as "admin"
-    And I visit "/report/customsql/view.php?id=1"
+    And I view the "No auto execute" custom sql report
     Then I should see "No auto execute"
     And I should see "This is an on-demand (async) query"
     And I should not see "Query execution queued successfully"
@@ -374,7 +374,7 @@ Feature: Ad-hoc database queries report
       | status | running    |
     When I am on the "report_customsql > executions" page logged in as admin
     And I follow "Cancel"
-    And I press "Yes"
+    And I press "Continue"
     Then I should see "Execution has been cancelled"
 
   @javascript
@@ -388,7 +388,7 @@ Feature: Ad-hoc database queries report
       | filename | test.csv  |
     When I am on the "report_customsql > executions" page logged in as admin
     And I follow "Delete"
-    And I press "Yes"
+    And I press "Continue"
     Then I should see "Execution has been deleted"
 
   @javascript @_file_download

@@ -34,7 +34,7 @@
 }}
 
 <div class="execution-stats mb-3">
-    <h3>{{stats.title}}</h3>
+    {{#stats.title}}<h3>{{stats.title}}</h3>{{/stats.title}}
     <dl class="row">
         {{#stats.items}}
         <dt class="col-sm-3">{{label}}</dt>

@@ -22,8 +22,8 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['actions'] = 'Actions';
 $string['actionfailed'] = 'The requested action could not be completed. Please try again.';
+$string['actions'] = 'Actions';
 $string['addcategory'] = 'Add a new category';
 $string['addcategorydesc'] = 'To change a report\'s category, you must edit that report. Here you can edit category texts, delete a category or add a new category.';
 $string['addingareport'] = 'Adding an ad-hoc database query';
@@ -54,8 +54,6 @@ $string['cancelpending'] = 'Cancel pending';
 $string['cannotcancelexecution'] = 'Cannot cancel execution in this state';
 $string['cannotcreatetempfile'] = 'Cannot create temporary file for query execution';
 $string['cannotsavefile'] = 'Cannot save execution result file';
-$string['confirmcancelexecution'] = 'Are you sure you want to cancel this execution?';
-$string['confirmdeleteexecution'] = 'Are you sure you want to delete this execution?';
 $string['category'] = 'Category';
 $string['categorycontent'] = 'Category content';
 $string['categoryexists'] = 'Category names must be unique, this name already exists';
@@ -64,6 +62,8 @@ $string['changetheparameters'] = 'Change the parameters';
 $string['cleanupoldexecutionstask'] = 'Ad-hoc database queries: clean up old executions';
 $string['completed'] = 'Completed';
 $string['completedexecutions'] = 'Completed executions';
+$string['confirmcancelexecution'] = 'Are you sure you want to cancel this execution?';
+$string['confirmdeleteexecution'] = 'Are you sure you want to delete this execution?';
 $string['confirmrunexecution'] = 'Do you want to run this query in background mode?';
 $string['created'] = 'Created';
 $string['crontask'] = 'Ad-hoc database queries: run scheduled reports task';
@@ -128,7 +128,6 @@ $string['executionfailedsmall'] = 'Query "{$a}" failed';
 $string['executionfailedsubject'] = 'Query execution failed: {$a}';
 $string['executionlimitreached'] = 'The global concurrent execution limit ({$a}) has been reached. Please wait for some to complete.';
 $string['executionmode_background_info'] = 'This query will run in the background and you will be notified when it completes.';
-$string['userexecutionlimitreached'] = 'You have reached the maximum number of concurrent executions ({$a}). Please wait for some to complete.';
 $string['executionqueued'] = 'Query execution queued successfully';
 $string['executionqueued_info'] = 'Your query has been queued for background execution. You will receive a notification when it completes. You can view the progress on the executions page.';
 $string['executionretentiondays'] = 'Execution retention days';
@@ -267,6 +266,7 @@ $string['timemodified'] = '<span class="font-weight-bold">Last modified:</span> 
 $string['totalexecutions'] = 'Total Executions';
 $string['typeofresult'] = 'Type of result';
 $string['unknowndownloadfile'] = 'Unknown download file.';
+$string['userexecutionlimitreached'] = 'You have reached the maximum number of concurrent executions ({$a}). Please wait for some to complete.';
 $string['userhasnothiscapability'] = 'User \'{$a->name}\' ({$a->userid}) has not got capability \'{$a->capability}\'. Please delete this user from the list or change the choice in \'{$a->whocanaccess}\'.';
 $string['usermodified'] = '<span class="font-weight-bold">Modified by:</span> {$a}';
 $string['usernotfound'] = 'User with id \'{$a}\' does not exist';

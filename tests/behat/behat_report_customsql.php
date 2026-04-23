@@ -127,9 +127,10 @@ class behat_report_customsql extends behat_base {
         }
 
         // Runnable.
+        $runableoptions = report_customsql_runable_options();
         if (
             isset($report['runable']) &&
-                !in_array($report['runable'], report_customsql_runable_options())
+                !isset($runableoptions[$report['runable']])
         ) {
             throw new Exception('Invalid runable value ' . $report['runable'] . '.');
         } else if (!isset($report['runable'])) {

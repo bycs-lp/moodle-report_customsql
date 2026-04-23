@@ -312,7 +312,7 @@ Feature: Ad-hoc database queries report
       | querysql    | SELECT * FROM {user} WHERE id = 2 LIMIT 5  |
       | runable     | manual_async                               |
     When I log in as "admin"
-    And I am on "/report/customsql/view.php?id=1"
+    And I visit "/report/customsql/view.php?id=1"
     Then I should see "No auto execute"
     And I should see "This is an on-demand (async) query"
     And I should not see "Query execution queued successfully"

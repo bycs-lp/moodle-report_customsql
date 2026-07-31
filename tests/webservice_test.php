@@ -40,10 +40,14 @@ final class webservice_test extends \advanced_testcase {
     /**
      * Test getting a simple value via webservice.
      *
+     * Runs in an isolated process because report_customsql_external includes the legacy
+     * lib/externallib.php, which enforces PHPUnit process isolation via require_phpunit_isolation().
+     *
      * @runInSeparateProcess
      */
     public function test_get_simple_value(): void {
-        $this->resetAfterTest(true);
+        $this->resetAfterTest();
+        $this->setAdminUser();
 
         $displayname = 'test_query_counting_itself';
         $description = 'Count queries with exactly this name. Should be one.';

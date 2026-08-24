@@ -43,7 +43,8 @@ final class webservice_test extends \advanced_testcase {
      * @runInSeparateProcess
      */
     public function test_get_simple_value(): void {
-        $this->resetAfterTest(true);
+        $this->resetAfterTest();
+        $this->setAdminUser();
 
         $displayname = 'test_query_counting_itself';
         $description = 'Count queries with exactly this name. Should be one.';

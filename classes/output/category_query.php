@@ -84,7 +84,7 @@ class category_query implements renderable, templatable {
 
         return [
             'id' => $this->query->get_id(),
-            'displayname' => $this->query->get_displayname(),
+            'displayname' => format_string($this->query->get_displayname(), true, ['context' => $this->context]),
             'url' => $this->query->get_url()->out(false),
             'canedit' => $this->query->can_edit($this->context),
             'timenote' => $this->query->get_time_note(),

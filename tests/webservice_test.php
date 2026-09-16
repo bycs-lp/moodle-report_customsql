@@ -38,6 +38,107 @@ require_once(dirname(__FILE__) . '/../locallib.php');
  */
 final class webservice_test extends \advanced_testcase {
     /**
+     * All rows, duplicate first-column values and SQL NULL survive the external schema.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_query_result(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $reportid = $this->create_a_database_row();
+        $DB->update_record('report_customsql_queries', (object) [
+            'id' => $reportid,
+            'querysql' => 'SELECT 1 AS repeated, :value AS content, NULL AS optionalvalue '
+                . 'UNION ALL SELECT 1, :other, NULL',
+            'queryparams' => serialize(['value' => '<b>First & second</b>', 'other' => '0']),
+            'querylimit' => 1,
+        ]);
+
+        $result = \report_customsql_external::get_query_result('number_of_custom_sql_queries');
+        $cleaned = \report_customsql_external::clean_returnvalue(
+            \report_customsql_external::get_query_result_returns(),
+            $result
+        );
+        $this->assertSame([
+            'columns' => ['repeated', 'content', 'optionalvalue'],
+            'rows' => [
+                ['values' => ['1', '<b>First & second</b>', null]],
+                ['values' => ['1', '0', null]],
+            ],
+        ], $cleaned);
+    }
+
+    /**
+     * JSON parameters and the legacy table prefix work for an empty result.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_query_result_empty(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $reportid = $this->create_a_database_row();
+        $DB->update_record('report_customsql_queries', (object) [
+            'id' => $reportid,
+            'querysql' => 'SELECT id FROM prefix_report_customsql_queries WHERE id = :reportid',
+            'queryparams' => json_encode(['reportid' => -1]),
+        ]);
+        $this->assertSame(
+            ['columns' => [], 'rows' => []],
+            \report_customsql_external::get_query_result('number_of_custom_sql_queries')
+        );
+    }
+
+    /**
+     * Unknown queries are rejected.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_query_result_missing(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage(get_string('invalidreportid', 'report_customsql'));
+        \report_customsql_external::get_query_result('missing');
+    }
+
+    /**
+     * The global report capability is required before looking up a query.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_query_result_requires_view(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        $this->expectException(\required_capability_exception::class);
+        \report_customsql_external::get_query_result('missing');
+    }
+
+    /**
+     * A reader still needs the report-specific capability.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_query_result_requires_report_capability(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $this->getDataGenerator()->create_role();
+        $context = \context_system::instance();
+        assign_capability('report/customsql:view', CAP_ALLOW, $roleid, $context->id);
+        role_assign($roleid, $user->id, $context->id);
+        $reportid = $this->create_a_database_row();
+        $DB->set_field('report_customsql_queries', 'capability', 'moodle/site:config', ['id' => $reportid]);
+        $this->setUser($user);
+        $this->expectException(\required_capability_exception::class);
+        \report_customsql_external::get_query_result('number_of_custom_sql_queries');
+    }
+
+    /**
      * Test getting a simple value via webservice.
      *
      * @runInSeparateProcess

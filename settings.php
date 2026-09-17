@@ -25,6 +25,46 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
+    require_once($CFG->dirroot . '/report/customsql/locallib.php');
+
+    $settings->add(new admin_setting_heading(
+        'report_customsql/customsqlwebservice',
+        get_string('customsqlwebservice', 'report_customsql'),
+        get_string('customsqlwebservicedesc', 'report_customsql')
+    ));
+    $customsqlcategories = [];
+    if (!during_initial_install() && get_config('report_customsql', 'version')) {
+        $customsqlcategories = report_customsql_category_options();
+    }
+    $settings->add(new admin_setting_configmulticheckbox(
+        'report_customsql/customsqlcategories',
+        get_string('customsqlcategories', 'report_customsql'),
+        get_string('customsqlcategoriesdesc', 'report_customsql'),
+        [],
+        $customsqlcategories
+    ));
+    $settings->add(new admin_setting_heading(
+        'report_customsql/customsqlgraphitepaths',
+        get_string('customsqlgraphitepaths', 'report_customsql'),
+        get_string('customsqlgraphitepathsdesc', 'report_customsql')
+    ));
+    $selectedcategories = get_config('report_customsql', 'customsqlcategories');
+    if (!empty($selectedcategories)) {
+        foreach (explode(',', $selectedcategories) as $categoryid) {
+            $categoryid = (int) $categoryid;
+            if (isset($customsqlcategories[$categoryid])) {
+                $categoryname = $customsqlcategories[$categoryid];
+                $settings->add(new admin_setting_configtext(
+                    'report_customsql/customsqlgraphitepath_' . $categoryid,
+                    get_string('customsqlgraphitepath', 'report_customsql', $categoryname),
+                    get_string('customsqlgraphitepathdesc', 'report_customsql', $categoryname),
+                    'mebis.lern.count.',
+                    PARAM_PATH
+                ));
+            }
+        }
+    }
+
     // Start of week, used for the day to run weekly reports.
     $days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     $days = array_map(function ($day) {

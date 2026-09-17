@@ -38,6 +38,108 @@ require_once(dirname(__FILE__) . '/../locallib.php');
  */
 final class webservice_test extends \advanced_testcase {
     /**
+     * Upgrade copies legacy settings without overwriting target settings.
+     */
+    public function test_upgrade_query_discovery_settings(): void {
+        global $CFG;
+
+        require_once($CFG->libdir . '/upgradelib.php');
+        require_once($CFG->dirroot . '/report/customsql/db/upgrade.php');
+        $this->resetAfterTest();
+        set_config('version', 2025102102, 'report_customsql');
+        set_config('customsqlcategories', '1,2', 'local_mbs');
+        set_config('customsqlgraphitepath_1', 'legacy.first.', 'local_mbs');
+        set_config('customsqlgraphitepath_2', 'legacy.second.', 'local_mbs');
+        set_config('customsqlgraphitepath_1', 'existing.', 'report_customsql');
+        set_config('unrelated', 'unchanged', 'local_mbs');
+
+        $this->assertTrue(xmldb_report_customsql_upgrade(2025102102));
+        $this->assertSame('1,2', get_config('report_customsql', 'customsqlcategories'));
+        $this->assertSame('existing.', get_config('report_customsql', 'customsqlgraphitepath_1'));
+        $this->assertSame('legacy.second.', get_config('report_customsql', 'customsqlgraphitepath_2'));
+        $this->assertFalse(get_config('report_customsql', 'unrelated'));
+        $this->assertSame('1,2', get_config('local_mbs', 'customsqlcategories'));
+    }
+
+    /**
+     * Discovery only returns allowed categories and preserves Graphite paths.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_queries(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $allowedid = $DB->insert_record('report_customsql_categories', (object) ['name' => 'Allowed']);
+        $blockedid = $DB->insert_record('report_customsql_categories', (object) ['name' => 'Blocked']);
+        $reportid = $this->create_a_database_row('Allowed query');
+        $DB->set_field('report_customsql_queries', 'categoryid', $allowedid, ['id' => $reportid]);
+        $reportid = $this->create_a_database_row('Blocked query');
+        $DB->set_field('report_customsql_queries', 'categoryid', $blockedid, ['id' => $reportid]);
+        set_config('customsqlcategories', $allowedid . ',999999', 'report_customsql');
+        set_config('customsqlgraphitepath_' . $allowedid, 'mebis.lern.count.', 'report_customsql');
+        set_config('customsqlcategories', $blockedid, 'local_mbs');
+
+        $expected = [['displayname' => 'Allowed query', 'graphitepath' => 'mebis.lern.count.']];
+        $result = \report_customsql_external::get_queries();
+        $this->assertSame($expected, \report_customsql_external::clean_returnvalue(
+            \report_customsql_external::get_queries_returns(),
+            $result
+        ));
+        $this->assertSame($expected, \report_customsql_external::get_queries([$allowedid, $blockedid]));
+        $this->assertSame([], \report_customsql_external::get_queries([$blockedid]));
+        $this->assertSame([], \report_customsql_external::get_queries([999999]));
+        unset_config('customsqlgraphitepath_' . $allowedid, 'report_customsql');
+        $this->assertSame(
+            [['displayname' => 'Allowed query', 'graphitepath' => '']],
+            \report_customsql_external::get_queries([$allowedid])
+        );
+        set_config('customsqlcategories', '', 'report_customsql');
+        $this->assertSame([], \report_customsql_external::get_queries());
+    }
+
+    /**
+     * Query discovery requires its dedicated capability.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_queries_requires_capability(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        $this->expectException(\required_capability_exception::class);
+        \report_customsql_external::get_queries();
+    }
+
+    /**
+     * A user with the discovery capability can list queries without admin access.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_queries_with_capability(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $this->getDataGenerator()->create_role();
+        $context = \context_system::instance();
+        assign_capability('report/customsql:usecustomsql', CAP_ALLOW, $roleid, $context->id);
+        role_assign($roleid, $user->id, $context->id);
+        $this->setUser($user);
+        $this->assertSame([], \report_customsql_external::get_queries());
+    }
+
+    /**
+     * Invalid category filters are rejected.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_queries_invalid_category(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $this->expectException(\invalid_parameter_exception::class);
+        \report_customsql_external::get_queries(['invalid']);
+    }
+
+    /**
      * All rows, duplicate first-column values and SQL NULL survive the external schema.
      *
      * @runInSeparateProcess

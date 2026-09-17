@@ -37,6 +37,74 @@ require_once("$CFG->dirroot/report/customsql/locallib.php");
  */
 class report_customsql_external extends core_external\external_api {
     /**
+     * Describe the optional category filter for query discovery.
+     *
+     * @return external_function_parameters
+     */
+    public static function get_queries_parameters() {
+        return new external_function_parameters([
+            'categoryids' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'Category ID'),
+                'Category IDs to filter by',
+                VALUE_DEFAULT,
+                []
+            ),
+        ]);
+    }
+
+    /**
+     * List query names and Graphite paths from explicitly allowed categories.
+     *
+     * @param array $categoryids Optional category IDs to filter by.
+     * @return array Query names and category Graphite paths.
+     */
+    public static function get_queries($categoryids = []) {
+        global $DB;
+
+        $params = self::validate_parameters(self::get_queries_parameters(), ['categoryids' => $categoryids]);
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('report/customsql:usecustomsql', $context);
+
+        $allowedcategories = get_config('report_customsql', 'customsqlcategories');
+        if (empty($allowedcategories)) {
+            return [];
+        }
+        $categoryids = array_unique(array_map('intval', explode(',', $allowedcategories)));
+        if (!empty($params['categoryids'])) {
+            $categoryids = array_intersect($categoryids, $params['categoryids']);
+        }
+
+        $queries = [];
+        foreach ($categoryids as $categoryid) {
+            if (!$DB->record_exists('report_customsql_categories', ['id' => $categoryid])) {
+                continue;
+            }
+            $graphitepath = get_config('report_customsql', 'customsqlgraphitepath_' . $categoryid) ?: '';
+            $categoryqueries = $DB->get_records('report_customsql_queries', ['categoryid' => $categoryid], 'id', 'id, displayname');
+            foreach ($categoryqueries as $query) {
+                $queries[] = [
+                    'displayname' => $query->displayname,
+                    'graphitepath' => $graphitepath,
+                ];
+            }
+        }
+        return $queries;
+    }
+
+    /**
+     * Describe the query discovery response.
+     *
+     * @return external_multiple_structure
+     */
+    public static function get_queries_returns() {
+        return new external_multiple_structure(new external_single_structure([
+            'displayname' => new external_value(PARAM_TEXT, 'Display name'),
+            'graphitepath' => new external_value(PARAM_PATH, 'Graphite path for this category'),
+        ]));
+    }
+
+    /**
      * Describe the parameters for a complete query result.
      *
      * @return external_function_parameters

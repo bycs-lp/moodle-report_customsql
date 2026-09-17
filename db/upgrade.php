@@ -340,5 +340,17 @@ function xmldb_report_customsql_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2025101800, 'report', 'customsql');
     }
 
+    if ($oldversion < 2025102103) {
+        $legacyconfig = get_config('local_mbs');
+        foreach ((array) $legacyconfig as $name => $value) {
+            if ($name === 'customsqlcategories' || preg_match('/^customsqlgraphitepath_[0-9]+$/', $name)) {
+                if (get_config('report_customsql', $name) === false) {
+                    set_config($name, $value, 'report_customsql');
+                }
+            }
+        }
+        upgrade_plugin_savepoint(true, 2025102103, 'report', 'customsql');
+    }
+
     return true;
 }

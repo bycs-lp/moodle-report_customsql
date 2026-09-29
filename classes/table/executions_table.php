@@ -32,6 +32,7 @@ use html_writer;
 use moodle_url;
 use pix_icon;
 use stdClass;
+use report_customsql\local\category;
 
 /**
  * Dynamic table for listing query executions.
@@ -124,6 +125,29 @@ class executions_table extends \table_sql implements dynamic_table {
 
         $where = '1=1';
         $params = [];
+
+        // Filter out queries that the user does not have permission to view.
+        $queries = $DB->get_records(
+            'report_customsql_queries',
+            null,
+            '',
+            'id, capability'
+        );
+        $visiblequeryids = array_keys(
+            category::filter_reports_by_capability($queries)
+        );
+
+        if (empty($visiblequeryids)) {
+            $where .= ' AND 1 = 0';
+        } else {
+            [$insql, $inparams] = $DB->get_in_or_equal(
+                $visiblequeryids,
+                SQL_PARAMS_NAMED,
+                'allowedqueryid'
+            );
+            $where .= ' AND e.queryid ' . $insql;
+            $params += $inparams;
+        }
 
         // Apply filters.
         $filters = $filterset->get_filters();

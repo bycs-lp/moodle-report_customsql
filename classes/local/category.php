@@ -85,7 +85,7 @@ class category {
     }
 
     /**
-     * Given an array of qureries, remove any that the current user cannot access.
+     * Given an array of queries, remove any that the current user cannot access.
      *
      * @param \stdClass[] $queries Array of queries.
      * @return \stdClass[] queries the current user is allowed to see.

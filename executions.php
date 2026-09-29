@@ -31,6 +31,7 @@ require_once($CFG->libdir . '/tablelib.php');
 use report_customsql\table\executions_table;
 use report_customsql\table\executions_table_filterset;
 use report_customsql\output\executions_page;
+use report_customsql\local\category;
 
 // Parameters for filters.
 $queryid = optional_param('queryid', 0, PARAM_INT);
@@ -53,6 +54,7 @@ $PAGE->set_pagelayout('report');
 // Page heading.
 if ($queryid) {
     $query = $DB->get_record('report_customsql_queries', ['id' => $queryid], '*', MUST_EXIST);
+    require_capability($query->capability ?: 'moodle/site:config', $context);
     $pagetitle = get_string('executionsfor', 'report_customsql', format_string($query->displayname));
 } else {
     $pagetitle = get_string('backgroundexecutions', 'report_customsql');
@@ -67,15 +69,19 @@ $PAGE->navbar->add(get_string('manageexecutions', 'report_customsql'));
 echo $OUTPUT->header();
 echo $OUTPUT->heading($pagetitle);
 
+// Get available queries for filter and statistics.
+$queries = $DB->get_records('report_customsql_queries', null, 'displayname', 'id, displayname, capability');
+$filteredqueries = category::filter_reports_by_capability($queries);
+$queries = array_column($filteredqueries, 'displayname', 'id');
+$visiblequeryids = array_keys($filteredqueries);
+$statisticsuserid = ($onlymine || !$canviewall) ? (int)$USER->id : null;
+
 // Get statistics.
 if ($queryid) {
-    $stats = \report_customsql\local\execution_manager::get_query_statistics($queryid);
-} else {
+    $stats = \report_customsql\local\execution_manager::get_query_statistics($queryid, $statisticsuserid);
+} else if ($canviewall) {
     $stats = \report_customsql\local\execution_manager::get_global_queue_statistics();
 }
-
-// Get available queries for filter.
-$queries = $DB->get_records_menu('report_customsql_queries', null, 'displayname', 'id, displayname');
 
 // Setup filterset.
 $filterset = new executions_table_filterset();

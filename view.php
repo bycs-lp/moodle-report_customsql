@@ -67,9 +67,11 @@ report_customsql_log_view($id);
 // Handle background execution mode for manual_async reports.
 // Default mode is 'info' - only show query information, no automatic execution.
 // User must explicitly click a button to execute.
-if ($report->runable === 'manual_async'
+if (
+    $report->runable === 'manual_async'
     && get_config('report_customsql', 'enablebackgroundexecution')
-    && has_capability('report/customsql:executebackground', $context)) {
+    && has_capability('report/customsql:executebackground', $context)
+) {
     $executionmode = optional_param('mode', 'info', PARAM_ALPHA);
 
     // Only execute when user explicitly requests it with mode=execute.
@@ -86,11 +88,25 @@ if ($report->runable === 'manual_async'
             // Get query parameters from URL if any.
             $paramvalues = [];
             if (!empty($report->queryparams)) {
-                $queryparams = report_customsql_get_query_placeholders_and_field_names($report->querysql);
+                $queryparams = report_customsql_get_query_placeholders_and_field_names(
+                    $report->querysql
+                );
+                $relativeurl = 'view.php?id=' . $id . '&mode=execute';
+                $mform = new report_customsql_view_form(
+                    report_customsql_url($relativeurl),
+                    $queryparams
+                );
+                $formdata = $mform->get_data();
 
-                // Get any query param values that are given in the URL.
-                foreach ($queryparams as $queryparam => $notused) {
-                    $value = optional_param($queryparam, null, PARAM_RAW);
+                // Read submitted fields, or query parameters supplied directly in the URL.
+                foreach ($queryparams as $queryparam => $formparam) {
+                    $value = null;
+                    if ($formdata && isset($formdata->{$formparam})) {
+                        $value = $formdata->{$formparam};
+                    }
+                    if ($value === null) {
+                        $value = optional_param($queryparam, null, PARAM_RAW);
+                    }
                     if ($value !== null && $value !== '') {
                         $paramvalues[$queryparam] = $value;
                     }
@@ -205,7 +221,7 @@ if ($report->runable === 'manual_async'
 // We don't want slow reports blocking the session in other tabs.
 \core\session\manager::write_close();
 
-if ($report->runable == 'manual') {
+if ($report->runable == 'manual' || $report->runable == 'manual_async') {
     // Allow query parameters to be entered.
     if (!empty($report->queryparams)) {
         $queryparams = report_customsql_get_query_placeholders_and_field_names($report->querysql);

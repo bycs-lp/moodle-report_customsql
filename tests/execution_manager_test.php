@@ -227,7 +227,7 @@ final class execution_manager_test extends \advanced_testcase {
 
         // Create multiple executions with different statuses.
         for ($i = 0; $i < 3; $i++) {
-            $executionid = $DB->insert_record('report_customsql_executions', [
+            $DB->insert_record('report_customsql_executions', [
                 'queryid' => $queryid,
                 'userid' => $USER->id,
                 'executionmode' => 'background',
@@ -249,14 +249,31 @@ final class execution_manager_test extends \advanced_testcase {
             'cancelled' => 0,
         ]);
 
+        $otheruser = $this->getDataGenerator()->create_user();
+        $DB->insert_record('report_customsql_executions', [
+            'queryid' => $queryid,
+            'userid' => $otheruser->id,
+            'executionmode' => 'background',
+            'status' => 'completed',
+            'timecreated' => time(),
+            'timecompleted' => time(),
+            'executiontime' => 100,
+            'cancelled' => 0,
+        ]);
+
         // Get statistics.
-        $stats = execution_manager::get_query_statistics($queryid);
+        $stats = execution_manager::get_query_statistics($queryid, $USER->id);
 
         // Verify stats.
         $this->assertEquals(3, $stats['completed_total']);
         $this->assertEquals(1, $stats['failed_total']);
         $this->assertEquals(75.0, $stats['success_rate']);
         $this->assertEquals(11, $stats['avg_execution_time']);
+
+        // Get statistics for other user and verify.
+        $stats = execution_manager::get_query_statistics($queryid, $otheruser->id);
+        $this->assertEquals(1, $stats['completed_total']);
+        $this->assertEquals(0, $stats['failed_total']);
     }
 
     /**
@@ -266,7 +283,6 @@ final class execution_manager_test extends \advanced_testcase {
         global $DB, $USER;
 
         $queryid = $this->create_test_query();
-
         // Create executions with various statuses.
         $statuses = ['pending', 'running', 'completed', 'failed'];
         foreach ($statuses as $status) {
@@ -279,13 +295,33 @@ final class execution_manager_test extends \advanced_testcase {
                 'cancelled' => 0,
             ]);
         }
+        $otheruser = $this->getDataGenerator()->create_user();
+        $DB->insert_record('report_customsql_executions', [
+            'queryid' => $queryid,
+            'userid' => $otheruser->id,
+            'executionmode' => 'background',
+            'status' => 'pending',
+            'timecreated' => time(),
+            'cancelled' => 0,
+        ]);
+        $otherqueryid = $this->create_test_query();
+        foreach (['pending', 'running'] as $status) {
+            $DB->insert_record('report_customsql_executions', [
+                'queryid' => $otherqueryid,
+                'userid' => $USER->id,
+                'executionmode' => 'background',
+                'status' => $status,
+                'timecreated' => time(),
+                'cancelled' => 0,
+            ]);
+        }
 
         // Get global statistics.
         $stats = execution_manager::get_global_queue_statistics();
 
         // Verify stats.
-        $this->assertEquals(1, $stats['total_pending']);
-        $this->assertEquals(1, $stats['total_running']);
+        $this->assertEquals(3, $stats['total_pending']);
+        $this->assertEquals(2, $stats['total_running']);
     }
 
     /**
@@ -331,7 +367,6 @@ final class execution_manager_test extends \advanced_testcase {
             'capability' => '',
             'lastrun' => 0,
             'lastexecutiontime' => 0,
-            'runable' => 'manual_async',
             'singlerow' => 0,
             'at' => '',
             'emailto' => '',

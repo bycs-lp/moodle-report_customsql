@@ -302,27 +302,28 @@ class execution_manager {
      * @param int $queryid Query ID to get statistics for
      * @return array Statistics array
      */
-    public static function get_query_statistics(int $queryid): array {
+    public static function get_query_statistics(int $queryid, ?int $userid): array {
         global $DB;
 
-        $stats = [
-            'queryid' => $queryid,
-            'pending' => $DB->count_records(
+        $conditions = ['queryid' => $queryid];
+        if ($userid !== null) {
+            $conditions['userid'] = $userid;
+        }
+
+        $stats = ['queryid' => $queryid];
+        $statuskeys = [
+            'pending' => 'pending',
+            'running' => 'running',
+            'completed_total' => 'completed',
+            'failed_total' => 'failed',
+        ];
+        foreach ($statuskeys as $statkey => $status) {
+            $stats[$statkey] = $DB->count_records(
                 'report_customsql_executions',
-                ['queryid' => $queryid, 'status' => 'pending']
-            ),
-            'running' => $DB->count_records(
-                'report_customsql_executions',
-                ['queryid' => $queryid, 'status' => 'running']
-            ),
-            'completed_total' => $DB->count_records(
-                'report_customsql_executions',
-                ['queryid' => $queryid, 'status' => 'completed']
-            ),
-            'failed_total' => $DB->count_records(
-                'report_customsql_executions',
-                ['queryid' => $queryid, 'status' => 'failed']
-            ),
+                $conditions + ['status' => $status]
+            );
+        }
+        $stats += [
             'failed_last_hour' => 0,
             'avg_execution_time' => 0,
             'success_rate' => 0,
@@ -330,20 +331,32 @@ class execution_manager {
 
         // Failed in last hour for this query.
         $onehourago = time() - HOURSECS;
+        $failedwhere = 'queryid = :queryid AND status = :status AND timecompleted > :time';
+        $failedparams = ['queryid' => $queryid, 'status' => 'failed', 'time' => $onehourago];
+        if ($userid !== null) {
+            $failedwhere .= ' AND userid = :userid';
+            $failedparams['userid'] = $userid;
+        }
         $stats['failed_last_hour'] = $DB->count_records_select(
             'report_customsql_executions',
-            'queryid = :queryid AND status = :status AND timecompleted > :time',
-            ['queryid' => $queryid, 'status' => 'failed', 'time' => $onehourago]
+            $failedwhere,
+            $failedparams
         );
 
         // Average execution time of last 20 successful executions for this query.
         // Using PHP to compute the average for cross-DB compatibility (LIMIT in subquery is not portable).
+        $completedwhere = 'queryid = :queryid AND status = :status AND executiontime IS NOT NULL';
+        $completedparams = ['queryid' => $queryid, 'status' => 'completed'];
+        if ($userid !== null) {
+            $completedwhere .= ' AND userid = :userid';
+            $completedparams['userid'] = $userid;
+        }
         $recentexecutions = $DB->get_records_select(
             'report_customsql_executions',
-            'queryid = :queryid AND status = :status AND executiontime IS NOT NULL',
-            ['queryid' => $queryid, 'status' => 'completed'],
+            $completedwhere,
+            $completedparams,
             'timecompleted DESC',
-            'executiontime',
+            'id, executiontime',
             0,
             20
         );

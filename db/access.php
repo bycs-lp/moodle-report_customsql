@@ -26,6 +26,12 @@ defined('MOODLE_INTERNAL') || die();
 
 $capabilities = [
 
+    'report/customsql:usecustomsql' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [],
+    ],
+
     // People who can view the reports at all.
     'report/customsql:view' => [
         'riskbitmask' => RISK_PERSONAL,

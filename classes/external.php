@@ -37,6 +37,164 @@ require_once("$CFG->dirroot/report/customsql/locallib.php");
  */
 class report_customsql_external extends core_external\external_api {
     /**
+     * Describe the optional category filter for query discovery.
+     *
+     * @return external_function_parameters
+     */
+    public static function get_queries_parameters() {
+        return new external_function_parameters([
+            'categoryids' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'Category ID'),
+                'Category IDs to filter by',
+                VALUE_DEFAULT,
+                []
+            ),
+        ]);
+    }
+
+    /**
+     * List query names and Graphite paths from explicitly allowed categories.
+     *
+     * @param array $categoryids Optional category IDs to filter by.
+     * @return array Query names and category Graphite paths.
+     */
+    public static function get_queries($categoryids = []) {
+        global $DB;
+
+        $params = self::validate_parameters(self::get_queries_parameters(), ['categoryids' => $categoryids]);
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('report/customsql:usecustomsql', $context);
+
+        $categoryids = self::get_allowed_category_ids();
+        if (!empty($params['categoryids'])) {
+            $categoryids = array_intersect($categoryids, $params['categoryids']);
+        }
+
+        $queries = [];
+        foreach ($categoryids as $categoryid) {
+            if (!$DB->record_exists('report_customsql_categories', ['id' => $categoryid])) {
+                continue;
+            }
+            $graphitepath = get_config('report_customsql', 'customsqlgraphitepath_' . $categoryid) ?: '';
+            $categoryqueries = $DB->get_records('report_customsql_queries', ['categoryid' => $categoryid], 'id', 'id, displayname');
+            foreach ($categoryqueries as $query) {
+                $queries[] = [
+                    'displayname' => $query->displayname,
+                    'graphitepath' => $graphitepath,
+                ];
+            }
+        }
+        return $queries;
+    }
+
+    /**
+     * Get the category IDs enabled for the monitoring webservices.
+     *
+     * @return int[]
+     */
+    private static function get_allowed_category_ids(): array {
+        $allowedcategories = get_config('report_customsql', 'customsqlcategories');
+        if (empty($allowedcategories)) {
+            return [];
+        }
+        return array_unique(array_map('intval', explode(',', $allowedcategories)));
+    }
+
+    /**
+     * Describe the query discovery response.
+     *
+     * @return external_multiple_structure
+     */
+    public static function get_queries_returns() {
+        return new external_multiple_structure(new external_single_structure([
+            'displayname' => new external_value(PARAM_TEXT, 'Display name'),
+            'graphitepath' => new external_value(PARAM_PATH, 'Graphite path for this category'),
+        ]));
+    }
+
+    /**
+     * Describe the parameters for a complete query result.
+     *
+     * @return external_function_parameters
+     */
+    public static function get_query_result_parameters() {
+        return new external_function_parameters([
+            'queryname' => new external_value(PARAM_TEXT, 'Name of the query.'),
+        ]);
+    }
+
+    /**
+     * Execute a predefined query from an allowed category without the report display row limit.
+     *
+     * @param string $queryname Name of the saved query.
+     * @return array Column names and rows containing nullable string values.
+     */
+    public static function get_query_result($queryname) {
+        global $DB;
+
+        $params = self::validate_parameters(self::get_query_result_parameters(), ['queryname' => $queryname]);
+        $context = \context_system::instance();
+        self::validate_context($context);
+        require_capability('report/customsql:view', $context);
+
+        $report = $DB->get_record('report_customsql_queries', ['displayname' => $params['queryname']]);
+        // Same error for disallowed categories so query names outside them are not disclosed.
+        if (!$report || !in_array((int) $report->categoryid, self::get_allowed_category_ids(), true)) {
+            throw new \moodle_exception('invalidreportid', 'report_customsql');
+        }
+        if (!empty($report->capability)) {
+            require_capability($report->capability, $context);
+        }
+
+        $queryparams = [];
+        if (!empty($report->queryparams)) {
+            $queryparams = json_decode($report->queryparams, true);
+            if (!is_array($queryparams)) {
+                $queryparams = unserialize($report->queryparams, ['allowed_classes' => false]);
+            }
+            if (!is_array($queryparams)) {
+                throw new \invalid_parameter_exception('Invalid saved query parameters.');
+            }
+        }
+
+        $sql = report_customsql_prepare_sql($report, time());
+        $recordset = report_customsql_execute_query($sql, $queryparams, 0);
+        $result = ['columns' => [], 'rows' => []];
+        try {
+            foreach ($recordset as $record) {
+                if (!$result['columns']) {
+                    $result['columns'] = array_keys((array) $record);
+                }
+                $values = [];
+                foreach ($record as $value) {
+                    $values[] = $value === null ? null : (string) $value;
+                }
+                $result['rows'][] = ['values' => $values];
+            }
+        } finally {
+            $recordset->close();
+        }
+        return $result;
+    }
+
+    /**
+     * Describe the complete query result.
+     *
+     * @return external_single_structure
+     */
+    public static function get_query_result_returns() {
+        return new external_single_structure([
+            'columns' => new external_multiple_structure(new external_value(PARAM_RAW, 'SQL column name.')),
+            'rows' => new external_multiple_structure(new external_single_structure([
+                'values' => new external_multiple_structure(
+                    new external_value(PARAM_RAW, 'Cell value as text, or null for SQL NULL.', VALUE_REQUIRED, null, NULL_ALLOWED)
+                ),
+            ])),
+        ]);
+    }
+
+    /**
      * Returns description of method parameters
      *
      * @return external_function_parameters

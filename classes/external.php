@@ -66,11 +66,7 @@ class report_customsql_external extends core_external\external_api {
         self::validate_context($context);
         require_capability('report/customsql:usecustomsql', $context);
 
-        $allowedcategories = get_config('report_customsql', 'customsqlcategories');
-        if (empty($allowedcategories)) {
-            return [];
-        }
-        $categoryids = array_unique(array_map('intval', explode(',', $allowedcategories)));
+        $categoryids = self::get_allowed_category_ids();
         if (!empty($params['categoryids'])) {
             $categoryids = array_intersect($categoryids, $params['categoryids']);
         }
@@ -90,6 +86,19 @@ class report_customsql_external extends core_external\external_api {
             }
         }
         return $queries;
+    }
+
+    /**
+     * Get the category IDs enabled for the monitoring webservices.
+     *
+     * @return int[]
+     */
+    private static function get_allowed_category_ids(): array {
+        $allowedcategories = get_config('report_customsql', 'customsqlcategories');
+        if (empty($allowedcategories)) {
+            return [];
+        }
+        return array_unique(array_map('intval', explode(',', $allowedcategories)));
     }
 
     /**
@@ -116,7 +125,7 @@ class report_customsql_external extends core_external\external_api {
     }
 
     /**
-     * Execute a predefined query without the report display row limit.
+     * Execute a predefined query from an allowed category without the report display row limit.
      *
      * @param string $queryname Name of the saved query.
      * @return array Column names and rows containing nullable string values.
@@ -130,7 +139,8 @@ class report_customsql_external extends core_external\external_api {
         require_capability('report/customsql:view', $context);
 
         $report = $DB->get_record('report_customsql_queries', ['displayname' => $params['queryname']]);
-        if (!$report) {
+        // Same error for disallowed categories so query names outside them are not disclosed.
+        if (!$report || !in_array((int) $report->categoryid, self::get_allowed_category_ids(), true)) {
             throw new \moodle_exception('invalidreportid', 'report_customsql');
         }
         if (!empty($report->capability)) {

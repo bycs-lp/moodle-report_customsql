@@ -132,6 +132,7 @@ final class webservice_test extends \advanced_testcase {
             'queryparams' => serialize(['value' => '<b>First & second</b>', 'other' => '0']),
             'querylimit' => 1,
         ]);
+        set_config('customsqlcategories', '1', 'report_customsql');
 
         $result = \report_customsql_external::get_query_result('number_of_custom_sql_queries');
         $cleaned = \report_customsql_external::clean_returnvalue(
@@ -163,6 +164,7 @@ final class webservice_test extends \advanced_testcase {
             'querysql' => 'SELECT id FROM prefix_report_customsql_queries WHERE id = :reportid',
             'queryparams' => json_encode(['reportid' => -1]),
         ]);
+        set_config('customsqlcategories', '1', 'report_customsql');
         $this->assertSame(
             ['columns' => [], 'rows' => []],
             \report_customsql_external::get_query_result('number_of_custom_sql_queries')
@@ -180,6 +182,21 @@ final class webservice_test extends \advanced_testcase {
         $this->expectException(\moodle_exception::class);
         $this->expectExceptionMessage(get_string('invalidreportid', 'report_customsql'));
         \report_customsql_external::get_query_result('missing');
+    }
+
+    /**
+     * Queries outside the allowed categories are rejected like unknown queries.
+     *
+     * @runInSeparateProcess
+     */
+    public function test_get_query_result_category_not_allowed(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $this->create_a_database_row();
+        set_config('customsqlcategories', '2', 'report_customsql');
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage(get_string('invalidreportid', 'report_customsql'));
+        \report_customsql_external::get_query_result('number_of_custom_sql_queries');
     }
 
     /**
@@ -210,6 +227,7 @@ final class webservice_test extends \advanced_testcase {
         role_assign($roleid, $user->id, $context->id);
         $reportid = $this->create_a_database_row();
         $DB->set_field('report_customsql_queries', 'capability', 'moodle/site:config', ['id' => $reportid]);
+        set_config('customsqlcategories', '1', 'report_customsql');
         $this->setUser($user);
         $this->expectException(\required_capability_exception::class);
         \report_customsql_external::get_query_result('number_of_custom_sql_queries');

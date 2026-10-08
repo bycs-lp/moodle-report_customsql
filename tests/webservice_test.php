@@ -38,30 +38,6 @@ require_once(dirname(__FILE__) . '/../locallib.php');
  */
 final class webservice_test extends \advanced_testcase {
     /**
-     * Upgrade copies legacy settings without overwriting target settings.
-     */
-    public function test_upgrade_query_discovery_settings(): void {
-        global $CFG;
-
-        require_once($CFG->libdir . '/upgradelib.php');
-        require_once($CFG->dirroot . '/report/customsql/db/upgrade.php');
-        $this->resetAfterTest();
-        set_config('version', 2025102102, 'report_customsql');
-        set_config('customsqlcategories', '1,2', 'local_mbs');
-        set_config('customsqlgraphitepath_1', 'legacy.first.', 'local_mbs');
-        set_config('customsqlgraphitepath_2', 'legacy.second.', 'local_mbs');
-        set_config('customsqlgraphitepath_1', 'existing.', 'report_customsql');
-        set_config('unrelated', 'unchanged', 'local_mbs');
-
-        $this->assertTrue(xmldb_report_customsql_upgrade(2025102102));
-        $this->assertSame('1,2', get_config('report_customsql', 'customsqlcategories'));
-        $this->assertSame('existing.', get_config('report_customsql', 'customsqlgraphitepath_1'));
-        $this->assertSame('legacy.second.', get_config('report_customsql', 'customsqlgraphitepath_2'));
-        $this->assertFalse(get_config('report_customsql', 'unrelated'));
-        $this->assertSame('1,2', get_config('local_mbs', 'customsqlcategories'));
-    }
-
-    /**
      * Discovery only returns allowed categories and preserves Graphite paths.
      *
      * @runInSeparateProcess
@@ -79,7 +55,6 @@ final class webservice_test extends \advanced_testcase {
         $DB->set_field('report_customsql_queries', 'categoryid', $blockedid, ['id' => $reportid]);
         set_config('customsqlcategories', $allowedid . ',999999', 'report_customsql');
         set_config('customsqlgraphitepath_' . $allowedid, 'mebis.lern.count.', 'report_customsql');
-        set_config('customsqlcategories', $blockedid, 'local_mbs');
 
         $expected = [['displayname' => 'Allowed query', 'graphitepath' => 'mebis.lern.count.']];
         $result = \report_customsql_external::get_queries();

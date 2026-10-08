@@ -30,7 +30,6 @@ $capabilities = [
         'captype' => 'read',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => [],
-        'clonepermissionsfrom' => 'local/mbs:usecustomsql',
     ],
 
     // People who can view the reports at all.

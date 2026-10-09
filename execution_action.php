@@ -60,6 +60,7 @@ if ($action === 'run') {
 if ($action === 'run') {
     // For run action, get query record.
     $query = $DB->get_record('report_customsql_queries', ['id' => $queryid], '*', MUST_EXIST);
+    require_capability($query->capability ?: 'moodle/site:config', $context);
     $execution = null;
 
     // Check if query supports async execution.

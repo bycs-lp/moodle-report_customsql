@@ -100,7 +100,11 @@ class execute_query_adhoc extends adhoc_task {
         }
 
         // Use literal capability string for compatibility with some static analysers.
-        if (!has_capability('report/customsql:executebackground', \context_system::instance(), $execution->userid)) {
+        $syscontext = \context_system::instance();
+        if (
+            !has_capability('report/customsql:executebackground', $syscontext, $execution->userid)
+            || !has_capability($report->capability ?: 'moodle/site:config', $syscontext, $execution->userid)
+        ) {
             $this->update_execution_status($executionid, self::STATUS_FAILED, [
                 'errormessage' => get_string('nopermissions', 'error', self::CAPABILITY_EXECUTE),
                 'timecompleted' => $now,

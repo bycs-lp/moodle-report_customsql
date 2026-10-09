@@ -451,6 +451,76 @@ final class adhoc_task_test extends \advanced_testcase {
     }
 
     /**
+     * A queued execution fails when the user lacks the query's own capability.
+     */
+    #[\PHPUnit\Framework\Attributes\Group('baseline')]
+    public function test_execution_denied_without_query_capability(): void {
+        global $DB;
+
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $this->getDataGenerator()->create_role();
+        assign_capability('report/customsql:executebackground', CAP_ALLOW, $roleid, \context_system::instance());
+        role_assign($roleid, $user->id, \context_system::instance());
+
+        $queryid = $this->create_test_query('SELECT id FROM {user}');
+        $DB->set_field('report_customsql_queries', 'capability', 'moodle/site:config', ['id' => $queryid]);
+        $executionid = $DB->insert_record('report_customsql_executions', [
+            'queryid' => $queryid,
+            'userid' => $user->id,
+            'executionmode' => 'background',
+            'status' => 'queued',
+            'timecreated' => time(),
+            'cancelled' => 0,
+        ]);
+
+        $task = new execute_query_adhoc();
+        $task->set_custom_data(['executionid' => $executionid]);
+        ob_start();
+        $task->execute();
+        ob_end_clean();
+
+        $execution = $DB->get_record('report_customsql_executions', ['id' => $executionid]);
+        $this->assertEquals('failed', $execution->status);
+        $this->assertEmpty($execution->rowsreturned);
+        $this->assertEmpty($execution->filename);
+    }
+
+    /**
+     * A queued execution runs when the user holds the query's own capability.
+     */
+    #[\PHPUnit\Framework\Attributes\Group('baseline')]
+    public function test_execution_allowed_with_query_capability(): void {
+        global $DB;
+
+        $user = $this->getDataGenerator()->create_user();
+        $roleid = $this->getDataGenerator()->create_role();
+        assign_capability('report/customsql:executebackground', CAP_ALLOW, $roleid, \context_system::instance());
+        assign_capability('moodle/site:viewreports', CAP_ALLOW, $roleid, \context_system::instance());
+        role_assign($roleid, $user->id, \context_system::instance());
+
+        $queryid = $this->create_test_query('SELECT id FROM {user}');
+        $DB->set_field('report_customsql_queries', 'capability', 'moodle/site:viewreports', ['id' => $queryid]);
+        $executionid = $DB->insert_record('report_customsql_executions', [
+            'queryid' => $queryid,
+            'userid' => $user->id,
+            'executionmode' => 'background',
+            'status' => 'queued',
+            'timecreated' => time(),
+            'cancelled' => 0,
+        ]);
+
+        $task = new execute_query_adhoc();
+        $task->set_custom_data(['executionid' => $executionid]);
+        ob_start();
+        $task->execute();
+        ob_end_clean();
+
+        $execution = $DB->get_record('report_customsql_executions', ['id' => $executionid]);
+        $this->assertEquals('completed', $execution->status);
+        $this->assertGreaterThan(0, $execution->rowsreturned);
+    }
+
+    /**
      * Helper method to create a test query.
      *
      * @param string $sql SQL query

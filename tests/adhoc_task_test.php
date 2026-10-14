@@ -481,6 +481,7 @@ final class adhoc_task_test extends \advanced_testcase {
 
         $execution = $DB->get_record('report_customsql_executions', ['id' => $executionid]);
         $this->assertEquals('failed', $execution->status);
+        $this->assertStringContainsString('moodle/site:config', $execution->errormessage);
         $this->assertEmpty($execution->rowsreturned);
         $this->assertEmpty($execution->filename);
     }

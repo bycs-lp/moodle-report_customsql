@@ -604,6 +604,35 @@ final class report_test extends \advanced_testcase {
         $this->assertEquals('"""\\""",""","""' . "\r\n", file_get_contents($path));
     }
 
+    #[\PHPUnit\Framework\Attributes\Group('baseline')]
+    /**
+     * A recipient who lacks the report's access capability is rejected.
+     *
+     * @covers ::report_customsql_validate_users
+     */
+    public function test_validate_users_rejects_recipient_without_capability(): void {
+        $this->resetAfterTest();
+
+        $student = $this->getDataGenerator()->create_user();
+
+        $error = report_customsql_validate_users([$student->id], 'moodle/site:config');
+
+        $this->assertNotNull($error);
+        $this->assertStringContainsString('has not got capability', $error);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Group('baseline')]
+    /**
+     * A recipient who holds the report's access capability is accepted.
+     *
+     * @covers ::report_customsql_validate_users
+     */
+    public function test_validate_users_accepts_recipient_with_capability(): void {
+        $this->resetAfterTest();
+
+        $this->assertNull(report_customsql_validate_users([get_admin()->id], 'moodle/site:config'));
+    }
+
     /**
      * Create an entry in 'report_customsql_queries' table and return the id
      *

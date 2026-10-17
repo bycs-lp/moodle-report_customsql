@@ -480,6 +480,57 @@ final class report_test extends \advanced_testcase {
                 '&lt;b&gt;Raw HTML&lt;/b&gt;'], report_customsql_display_row($rawdata, $linkcolumns));
     }
 
+    #[\PHPUnit\Framework\Attributes\Group('baseline')]
+    /**
+     * An export path outside the data directory or without a .csv extension is refused and nothing is written.
+     *
+     * @covers ::report_customsql_copy_csv_to_customdir
+     */
+    public function test_copy_csv_to_customdir_refuses_unsafe_path(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+
+        $source = make_request_directory() . '/source.csv';
+        file_put_contents($source, 'payload');
+        $targets = [
+            sys_get_temp_dir() . '/report_customsql_' . uniqid() . '.csv',
+            make_temp_directory('report_customsql_test') . '/export.php',
+        ];
+        $this->assertStringStartsNotWith($CFG->dataroot, sys_get_temp_dir());
+
+        foreach ($targets as $target) {
+            $report = (object) ['id' => 1, 'customdir' => $target];
+            try {
+                report_customsql_copy_csv_to_customdir($report, time(), $source);
+                $this->fail('Export to ' . $target . ' should have been refused.');
+            } catch (\moodle_exception $e) {
+                $this->assertSame('customdirnotallowed', $e->errorcode);
+            }
+            $this->assertFileDoesNotExist($target);
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\Group('baseline')]
+    /**
+     * A .csv file path inside the data directory is still written.
+     *
+     * @covers ::report_customsql_copy_csv_to_customdir
+     */
+    public function test_copy_csv_to_customdir_allows_csv_in_dataroot(): void {
+        $this->resetAfterTest();
+
+        $source = make_request_directory() . '/source.csv';
+        file_put_contents($source, 'payload');
+        $target = make_temp_directory('report_customsql_test') . '/export.csv';
+        $this->expectOutputRegex('/Exported/');
+
+        report_customsql_copy_csv_to_customdir((object) ['id' => 1, 'customdir' => $target], time(), $source);
+
+        $this->assertSame('payload', file_get_contents($target));
+        unlink($target);
+    }
+
     /**
      * Test plugin emailing of reports
      *

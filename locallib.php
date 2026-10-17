@@ -1134,13 +1134,52 @@ function report_customsql_category_options() {
 }
 
 /**
+ * Check whether an export path may be written to.
+ *
+ * The path has to resolve to a location inside the Moodle data directory. A file path
+ * (as opposed to a directory) additionally has to end in .csv, so that exports cannot
+ * replace code or configuration files.
+ *
+ * @param string $path The path entered as "Export csv report to path / directory".
+ * @return bool true if the path is allowed.
+ */
+function report_customsql_is_allowed_customdir(string $path): bool {
+    global $CFG;
+
+    $real = realpath($path);
+    if ($real === false) {
+        // A file that does not exist yet: resolve its directory instead.
+        if (is_link($path)) {
+            return false;
+        }
+        $parent = realpath(dirname($path));
+        if ($parent === false) {
+            return false;
+        }
+        $real = $parent . DIRECTORY_SEPARATOR . basename($path);
+    }
+
+    $root = realpath($CFG->dataroot);
+    if ($root === false || !str_starts_with($real . DIRECTORY_SEPARATOR, $root . DIRECTORY_SEPARATOR)) {
+        return false;
+    }
+
+    return is_dir($real) || str_ends_with(strtolower($real), '.csv');
+}
+
+/**
  * Copies a csv file to an optional custom directory or file path.
  *
  * @param object $report
  * @param integer $timenow
  * @param string $csvfilename
+ * @throws moodle_exception if the custom path is not allowed.
  */
 function report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename = null) {
+
+    if (!report_customsql_is_allowed_customdir($report->customdir)) {
+        throw new moodle_exception('customdirnotallowed', 'report_customsql', '', s($report->customdir));
+    }
 
     // If the filename is empty then there was no data so we can't export a
     // new file, but if we are saving over the same file then we should delete

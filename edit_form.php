@@ -368,6 +368,13 @@ class report_customsql_edit_form extends moodleform {
             }
         }
 
+        // The export path must stay inside the Moodle data directory.
+        if (!empty($data['customdir']) && !isset($errors['customdir'])) {
+            if (!report_customsql_is_allowed_customdir($data['customdir'])) {
+                $errors['customdir'] = get_string('customdirnotallowed', 'report_customsql', s($data['customdir']));
+            }
+        }
+
         return $errors;
     }
 }

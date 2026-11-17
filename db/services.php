@@ -25,6 +25,24 @@
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
+    'report_customsql_get_queries' => [
+        'classname' => 'report_customsql_external',
+        'methodname' => 'get_queries',
+        'classpath' => 'report/customsql/classes/external.php',
+        'description' => 'Get CustomSQL queries from allowed categories.',
+        'type' => 'read',
+        'capabilities' => 'report/customsql:usecustomsql',
+        'ajax' => false,
+    ],
+    'report_customsql_get_query_result' => [
+        'classname' => 'report_customsql_external',
+        'methodname' => 'get_query_result',
+        'classpath' => 'report/customsql/classes/external.php',
+        'description' => 'Execute a predefined query from an allowed category and return all result rows.',
+        'capabilities' => 'report/customsql:view',
+        'type' => 'read',
+        'ajax' => false,
+    ],
     'report_customsql_get_users' => [
         'classname' => 'report_customsql\external\get_users',
         'methodname' => 'execute',
@@ -33,5 +51,30 @@ $functions = [
         'capabilities' => 'report/customsql:definequeries',
         'type' => 'read',
         'ajax' => true,
+    ],
+    'report_customsql_get_simple_value' => [
+        'classname'   => 'report_customsql_external',
+        'methodname'  => 'get_simple_value',
+        'classpath'   => 'report/customsql/classes/external.php',
+        'description' => 'Execute a predefined query of the customsql report to get a simple value.',
+        'type'        => 'read',
+        'ajax'        => true,
+    ],
+];
+
+$services = [
+    'Custom SQL Query Results API' => [
+        'functions' => ['report_customsql_get_query_result', 'report_customsql_get_queries'],
+        'shortname' => 'report_customsql_query_results',
+        'restrictedusers' => 1,
+        'enabled' => 1,
+    ],
+    'Custom SQL Report API' => [
+        'functions'       => [
+            'report_customsql_get_simple_value',
+        ],
+        'restrictedusers' => 1, // If 1, the administrator must manually select which user can use this service.
+        // (Administration > Plugins > Web services > Manage services > Authorised users).
+        'enabled'         => 1, // If 0, then token linked to this service won't work.
     ],
 ];

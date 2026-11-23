@@ -648,6 +648,12 @@ final class report_test extends \advanced_testcase {
         $this->assertNull(report_customsql_get_allowed_customdir_root());
         $this->assertNull(report_customsql_get_allowed_customdir_path('/tmp/report.csv'));
 
+        // A missing export root must not be created by the path getter.
+        $missingroot = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql_exportroot_missing';
+        set_config('exportroot', $missingroot, 'report_customsql');
+        $this->assertNull(report_customsql_get_allowed_customdir_root());
+        $this->assertDirectoryDoesNotExist($missingroot);
+
         // Configure a custom root.
         $customroot = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql_exportroot';
         mkdir($customroot, 0777, true);
@@ -689,5 +695,61 @@ final class report_test extends \advanced_testcase {
         $exported = $customroot . DIRECTORY_SEPARATOR . '17-' . basename($source);
         $this->assertFileExists($exported);
         $this->assertSame('csv data', file_get_contents($exported));
+
+        // A no-data run must reset the CSV destination, never the configured file path.
+        $customdirectory = $customroot . DIRECTORY_SEPARATOR . 'muc';
+        mkdir($customdirectory);
+        $configfile = $customdirectory . DIRECTORY_SEPARATOR . 'config.php';
+        file_put_contents($configfile, 'protected config');
+        $reportcsv = $configfile . '.csv';
+        $report = (object) [
+            'id' => 18,
+            'customdir' => 'muc' . DIRECTORY_SEPARATOR . 'config.php',
+            'runable' => 'daily',
+            'at' => 0,
+            'singlerow' => 0,
+        ];
+
+        ob_start();
+        try {
+            report_customsql_copy_csv_to_customdir($report, time(), $source);
+            report_customsql_copy_csv_to_customdir($report, time());
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertSame('protected config', file_get_contents($configfile));
+        $this->assertFileExists($reportcsv);
+        $this->assertSame('', file_get_contents($reportcsv));
+    }
+
+    /**
+     * Test scheduled reports are not exported when no custom path is configured.
+     *
+     * @covers ::report_customsql_generate_csv
+     */
+    public function test_report_customsql_scheduled_report_without_customdir_is_not_exported(): void {
+        global $CFG, $DB;
+
+        $this->resetAfterTest();
+
+        $customroot = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql_exportroot';
+        mkdir($customroot, 0777, true);
+        set_config('exportroot', $customroot, 'report_customsql');
+
+        $reportid = $this->create_a_database_row('daily', 0, 1, null);
+        $DB->set_field('report_customsql_queries', 'querysql', 'SELECT id FROM {report_customsql_queries} WHERE id = -1', [
+            'id' => $reportid,
+        ]);
+        $report = $DB->get_record('report_customsql_queries', ['id' => $reportid], '*', MUST_EXIST);
+
+        ob_start();
+        try {
+            report_customsql_generate_csv($report, time());
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertSame([], glob($customroot . DIRECTORY_SEPARATOR . '*.csv'));
     }
 }

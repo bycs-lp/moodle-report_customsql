@@ -101,12 +101,11 @@ if ($ADMIN->fulltree) {
         1
     ));
 
-    $settings->add(new admin_setting_configtext(
+    $settings->add(new admin_setting_configdirectory(
         'report_customsql/exportroot',
         get_string('exportroot', 'report_customsql'),
         get_string('exportroot_help', 'report_customsql'),
-        '', // Exports stay disabled until an admin sets a root.
-        PARAM_PATH
+        '' // Exports stay disabled until an admin sets a root.
     ));
 }
 

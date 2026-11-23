@@ -208,13 +208,17 @@ function report_customsql_generate_csv($report, $timenow, $returnheaderwhenempty
                 if (!empty($report->emailto)) {
                     report_customsql_email_report($report, $csvfilename);
                 }
-                report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename);
+                if (!empty($report->customdir)) {
+                    report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename);
+                }
             }
         } else { // If there is no data.
             if (!empty($report->emailto)) {
                 report_customsql_email_report($report);
             }
-            report_customsql_copy_csv_to_customdir($report, $timenow);
+            if (!empty($report->customdir)) {
+                report_customsql_copy_csv_to_customdir($report, $timenow);
+            }
         }
     }
     return $csvtimestamp;
@@ -1134,9 +1138,10 @@ function report_customsql_category_options() {
  *
  * @param object $report
  * @param integer $timenow
- * @param string $csvfilename
+ * @param string|null $csvfilename
+ * @return void
  */
-function report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename = null) {
+function report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename = null): void {
     $customdir = $report->customdir ?? '';
     $filepath = report_customsql_get_allowed_customdir_path($customdir);
     if ($filepath === null) {
@@ -1146,15 +1151,10 @@ function report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename 
         return;
     }
 
-    // If the filename is empty then there was no data so we can't export a
-    // new file, but if we are saving over the same file then we should delete
-    // the existing file or it will have stale data in it.
-    if (empty($csvfilename)) {
-        if (!is_dir($filepath)) {
-            file_put_contents($filepath, '');
-            mtrace("No data so resetting $filepath");
-        }
-        return;
+    // Keep no-data exports on the same .csv destination as populated exports.
+    $nodata = empty($csvfilename);
+    if ($nodata) {
+        [$csvfilename] = report_customsql_csv_filename($report, $timenow);
     }
 
     $filename = $report->id . '-' . basename($csvfilename);
@@ -1165,6 +1165,12 @@ function report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename 
     // Force a .csv suffix on the destination.
     if (!preg_match('/\.csv$/i', basename($filepath))) {
         $filepath .= '.csv';
+    }
+
+    if ($nodata) {
+        file_put_contents($filepath, '');
+        mtrace("No data so resetting $filepath");
+        return;
     }
 
     copy($csvfilename, $filepath);
@@ -1212,20 +1218,13 @@ function report_customsql_get_allowed_customdir_root(): ?string {
     $root = get_config('report_customsql', 'exportroot');
 
     // Custom exports are disabled until an administrator explicitly configures a root.
-    if (empty($root)) {
+    if (empty($root) || !is_dir($root)) {
         return null;
-    }
-
-    // Make sure the export root exists before we use it.
-    if (!is_dir($root)) {
-        if (!mkdir($root, 0777, true) && !is_dir($root)) {
-            throw new coding_exception('Unable to create the custom SQL export directory.');
-        }
     }
 
     $realroot = realpath($root);
     if ($realroot === false) {
-        throw new coding_exception('Unable to resolve the custom SQL export directory.');
+        return null;
     }
     return $realroot;
 }

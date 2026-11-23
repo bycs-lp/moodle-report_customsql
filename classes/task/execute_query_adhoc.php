@@ -144,8 +144,9 @@ class execute_query_adhoc extends adhoc_task {
                 }
             }
 
-            // Determine execution path: customdir (legacy) or file storage (new).
-            $usecustomdir = !empty($report->customdir) && $report->runable !== 'manual';
+            $usecustomdir = !empty($report->customdir) &&
+                $report->runable !== 'manual' &&
+                report_customsql_get_allowed_customdir_path($report->customdir) !== null;
 
             if ($usecustomdir) {
                 // Legacy path: Write directly to dataroot directory.
@@ -509,8 +510,7 @@ class execute_query_adhoc extends adhoc_task {
             'executiontime' => $executiontime,
         ]);
 
-        // Copy to custom directory.
-        if (!empty($report->customdir)) {
+        if (!empty($report->customdir) && report_customsql_get_allowed_customdir_path($report->customdir) !== null) {
             report_customsql_copy_csv_to_customdir($report, $now, $csvfilename);
         }
 

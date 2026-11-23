@@ -496,7 +496,10 @@ final class adhoc_task_test extends \advanced_testcase {
         ob_start();
 
         // Create custom directory for testing.
-        $customdir = make_temp_directory('report_customsql_test');
+        $exportroot = make_temp_directory('report_customsql_exportroot');
+        set_config('exportroot', $exportroot, 'report_customsql');
+        $customdir = $exportroot . DIRECTORY_SEPARATOR . 'scheduled';
+        mkdir($customdir);
 
         // Create test query with customdir.
         $category = $DB->insert_record('report_customsql_categories', ['name' => 'Test Category']);
@@ -555,21 +558,24 @@ final class adhoc_task_test extends \advanced_testcase {
         foreach ($files as $file) {
             @unlink($file);
         }
-        @rmdir($customdir);
+        rmdir($customdir);
+        rmdir($exportroot);
     }
 
     /**
-     * Test scheduled report execution with file storage (no customdir).
+     * Test scheduled report execution with an old customdir when no export root is configured.
      *
      * @covers \report_customsql\task\execute_query_adhoc::execute_with_filestorage
      */
-    public function test_scheduled_execution_with_filestorage(): void {
+    public function test_scheduled_execution_with_old_customdir_uses_filestorage(): void {
         global $DB, $USER;
 
         ob_start();
 
-        // Create test query without customdir (scheduled but no customdir).
+        // A stale legacy path must fall back to Moodle file storage.
+        unset_config('exportroot', 'report_customsql');
         $category = $DB->insert_record('report_customsql_categories', ['name' => 'Test Category']);
+        $legacycustomdir = make_temp_directory('report_customsql_legacy_export');
         $queryid = $DB->insert_record('report_customsql_queries', [
             'displayname' => 'Scheduled Test Query',
             'description' => 'Test scheduled query',
@@ -585,7 +591,7 @@ final class adhoc_task_test extends \advanced_testcase {
             'emailto' => '',
             'emailwhat' => '',
             'categoryid' => $category,
-            'customdir' => '', // No customdir - should use file storage.
+            'customdir' => $legacycustomdir,
             'usermodified' => $USER->id,
             'timecreated' => time(),
             'timemodified' => time(),
@@ -625,9 +631,11 @@ final class adhoc_task_test extends \advanced_testcase {
             $execution->filename
         );
         $this->assertNotFalse($file, 'CSV file should be created in file storage');
+        $this->assertSame([], glob($legacycustomdir . DIRECTORY_SEPARATOR . '*.csv'));
 
         // Verify lastrun was updated.
         $report = $DB->get_record('report_customsql_queries', ['id' => $queryid]);
         $this->assertGreaterThan(0, $report->lastrun, 'lastrun should be updated after scheduled execution');
+        rmdir($legacycustomdir);
     }
 }

@@ -56,14 +56,7 @@ final class adhoc_task_test extends \advanced_testcase {
         $queryid = $this->create_test_query('SELECT id, username FROM {user} LIMIT 5');
 
         // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -115,14 +108,7 @@ final class adhoc_task_test extends \advanced_testcase {
         $queryid = $this->create_test_query('SELECT invalid_column FROM {nonexistent_table}');
 
         // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid);
 
         // Execute task - this will throw exception but handle it internally.
         $task = new execute_query_adhoc();
@@ -172,15 +158,8 @@ final class adhoc_task_test extends \advanced_testcase {
         // Create test query with many rows to allow cancellation.
         $queryid = $this->create_test_query('SELECT id FROM {user}');
 
-        // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 1, // Pre-cancel it.
-        ]);
+        // Create execution record with cancellation.
+        $executionid = $this->create_test_execution($queryid, ['cancelled' => 1]);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -212,15 +191,7 @@ final class adhoc_task_test extends \advanced_testcase {
 
         // Create execution record with parameters.
         $queryparams = json_encode(['userid' => $USER->id]);
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'queryparams' => $queryparams,
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid, ['queryparams' => $queryparams]);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -259,15 +230,7 @@ final class adhoc_task_test extends \advanced_testcase {
 
         // Create execution record.
         $queryparams = json_encode(['userid' => $testuser->id]);
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'queryparams' => $queryparams,
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid, ['queryparams' => $queryparams]);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -324,14 +287,7 @@ final class adhoc_task_test extends \advanced_testcase {
         }
 
         // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -377,14 +333,7 @@ final class adhoc_task_test extends \advanced_testcase {
         $queryid = $this->create_test_query('SELECT id FROM {user} LIMIT 1');
 
         // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -420,14 +369,7 @@ final class adhoc_task_test extends \advanced_testcase {
         $queryid = $this->create_test_query('SELECT invalid FROM {nowhere}');
 
         // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -454,16 +396,17 @@ final class adhoc_task_test extends \advanced_testcase {
      * Helper method to create a test query.
      *
      * @param string $sql SQL query
-     * @return int Query ID
+     * @param array $overrides Additional fields to override.
+     * @return bool|int The query id or false on failure.
      */
-    protected function create_test_query(string $sql): int {
+    protected function create_test_query(string $sql, array $overrides = []): bool|int {
         global $DB, $USER;
 
         $category = $DB->insert_record('report_customsql_categories', [
             'name' => 'Test Category',
         ]);
 
-        return $DB->insert_record('report_customsql_queries', [
+        $defaults = [
             'displayname' => 'Test Query',
             'description' => 'Test Description',
             'querysql' => $sql,
@@ -482,7 +425,10 @@ final class adhoc_task_test extends \advanced_testcase {
             'usermodified' => $USER->id,
             'timecreated' => time(),
             'timemodified' => time(),
-        ]);
+        ];
+
+        $data = array_merge($defaults, $overrides);
+        return $DB->insert_record('report_customsql_queries', $data);
     }
 
     /**
@@ -502,37 +448,14 @@ final class adhoc_task_test extends \advanced_testcase {
         mkdir($customdir);
 
         // Create test query with customdir.
-        $category = $DB->insert_record('report_customsql_categories', ['name' => 'Test Category']);
-        $queryid = $DB->insert_record('report_customsql_queries', [
-            'displayname' => 'Scheduled Test Query',
-            'description' => 'Test scheduled query',
-            'querysql' => 'SELECT id, username FROM {user} LIMIT 2',
-            'queryparams' => '',
-            'querylimit' => 5000,
-            'capability' => '',
-            'lastrun' => 0,
-            'lastexecutiontime' => 0,
-            'runable' => 'daily',
-            'singlerow' => 0,
-            'at' => '0',
-            'emailto' => '',
-            'emailwhat' => '',
-            'categoryid' => $category,
+        $sql = 'SELECT id, username FROM {user} LIMIT 2';
+        $queryid = $this->create_test_query($sql, [
             'customdir' => $customdir,
-            'usermodified' => $USER->id,
-            'timecreated' => time(),
-            'timemodified' => time(),
+            'runable' => 'daily',
         ]);
 
         // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -574,38 +497,15 @@ final class adhoc_task_test extends \advanced_testcase {
 
         // A stale legacy path must fall back to Moodle file storage.
         unset_config('exportroot', 'report_customsql');
-        $category = $DB->insert_record('report_customsql_categories', ['name' => 'Test Category']);
         $legacycustomdir = make_temp_directory('report_customsql_legacy_export');
-        $queryid = $DB->insert_record('report_customsql_queries', [
-            'displayname' => 'Scheduled Test Query',
-            'description' => 'Test scheduled query',
-            'querysql' => 'SELECT id, username FROM {user} LIMIT 2',
-            'queryparams' => '',
-            'querylimit' => 5000,
-            'capability' => '',
-            'lastrun' => 0,
-            'lastexecutiontime' => 0,
-            'runable' => 'weekly',
-            'singlerow' => 0,
-            'at' => '0',
-            'emailto' => '',
-            'emailwhat' => '',
-            'categoryid' => $category,
+        $sql = 'SELECT id, username FROM {user} LIMIT 2';
+        $queryid = $this->create_test_query($sql, [
             'customdir' => $legacycustomdir,
-            'usermodified' => $USER->id,
-            'timecreated' => time(),
-            'timemodified' => time(),
+            'runable' => 'weekly',
         ]);
 
         // Create execution record.
-        $executionid = $DB->insert_record('report_customsql_executions', [
-            'queryid' => $queryid,
-            'userid' => $USER->id,
-            'executionmode' => 'background',
-            'status' => 'queued',
-            'timecreated' => time(),
-            'cancelled' => 0,
-        ]);
+        $executionid = $this->create_test_execution($queryid);
 
         // Execute task.
         $task = new execute_query_adhoc();
@@ -637,5 +537,28 @@ final class adhoc_task_test extends \advanced_testcase {
         $report = $DB->get_record('report_customsql_queries', ['id' => $queryid]);
         $this->assertGreaterThan(0, $report->lastrun, 'lastrun should be updated after scheduled execution');
         rmdir($legacycustomdir);
+    }
+
+    /**
+     * Helper methode to create a test execution.
+     *
+     * @param int $queryid The query id.
+     * @param array $overrides Optional queryparams.
+     * @return bool|int The execution id or false on failure.
+     */
+    public function create_test_execution($queryid, $overrides = []): bool|int {
+        global $DB, $USER;
+
+        $defaults = [
+            'queryid' => $queryid,
+            'userid' => $USER->id,
+            'executionmode' => 'background',
+            'status' => 'queued',
+            'timecreated' => time(),
+            'cancelled' => 0,
+        ];
+
+        $data = array_merge($defaults, $overrides);
+        return $DB->insert_record('report_customsql_executions', $data);
     }
 }

@@ -1138,27 +1138,50 @@ function report_customsql_category_options() {
  *
  * @param object $report
  * @param integer $timenow
- * @param string $csvfilename
+ * @param string|null $csvfilename
+ * @return void
  */
-function report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename = null) {
-
-    // If the filename is empty then there was no data so we can't export a
-    // new file, but if we are saving over the same file then we should delete
-    // the existing file or it will have stale data in it.
-    if (empty($csvfilename)) {
-        $filepath = $report->customdir;
-        if (!is_dir($filepath)) {
-            file_put_contents($filepath, '');
-            mtrace("No data so resetting $filepath");
-        }
+function report_customsql_copy_csv_to_customdir($report, $timenow, $csvfilename = null): void {
+    $customdir = $report->customdir ?? '';
+    if ($customdir === '') {
         return;
     }
 
-    $filename = $report->id . '-' . basename($csvfilename);
-    if (is_dir($report->customdir)) {
-        $filepath = realpath($report->customdir) . DIRECTORY_SEPARATOR . $filename;
-    } else {
-        $filepath = $report->customdir;
+    $filepath = report_customsql_get_allowed_customdir_path($customdir);
+    if ($filepath === null) {
+        mtrace('Rejected custom SQL export path outside the allowed data root: ' . $customdir);
+        return;
+    }
+
+    // No-data reports.
+    $nodata = empty($csvfilename);
+    if ($nodata) {
+        if (is_dir($filepath)) {
+            return; // Export to a directory -> do nothing.
+        }
+        // Export to a file -> create an empty file/ clear old data.
+        [$csvfilename] = report_customsql_csv_filename($report, $timenow);
+    }
+
+    if (is_dir($filepath)) {
+        $filename = $report->id . '-' . basename($csvfilename);
+        $filepath .= DIRECTORY_SEPARATOR . $filename;
+    }
+
+    // Force a .csv suffix on the destination.
+    if (!preg_match('/\.csv$/i', basename($filepath))) {
+        $filepath .= '.csv';
+    }
+
+    if (is_link($filepath)) {
+        mtrace('Rejected custom SQL export symlink: ' . $filepath);
+        return;
+    }
+
+    if ($nodata) {
+        file_put_contents($filepath, '');
+        mtrace("No data so resetting $filepath");
+        return;
     }
 
     copy($csvfilename, $filepath);
@@ -1195,4 +1218,77 @@ function report_customsql_sort_reports_by_displayname(array $records): array {
     ksort($sortedrecords, SORT_NATURAL);
 
     return $sortedrecords;
+}
+
+/**
+ * Return the allowed root directory for CSV export files.
+ *
+ * @return string The canonicalized absolute pathname on success.
+ */
+function report_customsql_get_allowed_customdir_root(): ?string {
+    $root = get_config('report_customsql', 'exportroot');
+
+    // Custom exports are disabled until an administrator explicitly configures a root.
+    if (empty($root) || !is_dir($root)) {
+        return null;
+    }
+
+    $realroot = realpath($root);
+    if ($realroot === false) {
+        return null;
+    }
+    return $realroot;
+}
+
+/**
+ * Resolve a custom export path and classify any validation problem.
+ *
+ * @param string $customdir The custom export path.
+ * @return array{status:string,path:?string,root:?string} Resolution status and path.
+ */
+function report_customsql_resolve_customdir_path(string $customdir): array {
+    $customdir = trim($customdir);
+    if ($customdir === '') {
+        return ['status' => 'empty', 'path' => null, 'root' => null];
+    }
+
+    $root = report_customsql_get_allowed_customdir_root();
+    if ($root === null) {
+        return ['status' => 'root', 'path' => null, 'root' => null];
+    }
+
+    $isabsolute = $customdir[0] === '/' || preg_match('~^[A-Za-z]:[\\/]~', $customdir);
+    $path = $isabsolute ? $customdir : $root . DIRECTORY_SEPARATOR . $customdir;
+
+    if (is_link($path)) {
+        return ['status' => 'symlink', 'path' => null, 'root' => $root];
+    }
+
+    $resolved = realpath($path);
+    if ($resolved === false) {
+        $resolvedparent = realpath(dirname($path));
+        if ($resolvedparent === false) {
+            return ['status' => 'missingparent', 'path' => null, 'root' => $root];
+        }
+        $resolved = $resolvedparent . DIRECTORY_SEPARATOR . basename($path);
+    }
+
+    $allowedroot = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    $resolvedpath = rtrim($resolved, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if ($resolved !== $root && !str_starts_with($resolvedpath, $allowedroot)) {
+        return ['status' => 'outside', 'path' => null, 'root' => $root];
+    }
+
+    return ['status' => 'valid', 'path' => $resolved, 'root' => $root];
+}
+
+/**
+ * Resolve a custom export path and ensure it is inside the configured export root.
+ *
+ * @param string $customdir The custom export path.
+ * @return string|null The resolved absolute path if allowed, or null otherwise.
+ */
+function report_customsql_get_allowed_customdir_path(string $customdir): ?string {
+    $resolution = report_customsql_resolve_customdir_path($customdir);
+    return $resolution['status'] === 'valid' ? $resolution['path'] : null;
 }

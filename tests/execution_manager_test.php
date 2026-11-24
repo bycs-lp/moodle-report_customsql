@@ -341,7 +341,6 @@ final class execution_manager_test extends \advanced_testcase {
             'usermodified' => $USER->id,
             'timecreated' => time(),
             'timemodified' => time(),
-            'runable' => 'manual_async',
         ]);
     }
 }

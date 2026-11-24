@@ -632,4 +632,155 @@ final class report_test extends \advanced_testcase {
 
         return $DB->insert_record('report_customsql_queries', $report);
     }
+
+    /**
+     * Test that customdir exports are confined to the configured export root.
+     *
+     * @covers ::report_customsql_get_allowed_customdir_root
+     * @covers ::report_customsql_resolve_customdir_path
+     * @covers ::report_customsql_get_allowed_customdir_path
+     */
+    public function test_report_customsql_customdir_requires_configured_exportroot(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+
+        // Without an export root, the export feature is unavailable.
+        $this->assertNull(report_customsql_get_allowed_customdir_root());
+        $this->assertNull(report_customsql_get_allowed_customdir_path('/tmp/report.csv'));
+
+        // A missing export root must not be created by the path getter.
+        $missingroot = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql_exportroot_missing';
+        set_config('exportroot', $missingroot, 'report_customsql');
+        $this->assertNull(report_customsql_get_allowed_customdir_root());
+        $this->assertDirectoryDoesNotExist($missingroot);
+
+        // Configure a custom root.
+        $customroot = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql_exportroot';
+        mkdir($customroot, 0777, true);
+        set_config('exportroot', $customroot, 'report_customsql');
+
+        $allowedincustomroot = $customroot . DIRECTORY_SEPARATOR . 'nested' . DIRECTORY_SEPARATOR . 'report.csv';
+        mkdir(dirname($allowedincustomroot), 0777, true);
+        file_put_contents($allowedincustomroot, 'ok');
+
+        // An empty customdir means no export; it must not resolve to the export root.
+        $this->assertSame('empty', report_customsql_resolve_customdir_path('')['status']);
+        $this->assertNull(report_customsql_get_allowed_customdir_path(''));
+        $this->assertSame(
+            realpath($allowedincustomroot),
+            report_customsql_get_allowed_customdir_path($allowedincustomroot)
+        );
+        $this->assertSame(
+            realpath($allowedincustomroot),
+            report_customsql_get_allowed_customdir_path('nested' . DIRECTORY_SEPARATOR . 'report.csv')
+        );
+        $this->assertNull(report_customsql_get_allowed_customdir_path(
+            $customroot . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'outside.csv'
+        ));
+        $this->assertNull(report_customsql_get_allowed_customdir_path('/tmp/escape.csv'));
+
+        // An empty customdir must not trigger an export.
+        $source = $CFG->tempdir . DIRECTORY_SEPARATOR . 'customsql-source.csv';
+        file_put_contents($source, 'csv data');
+        $report = (object) ['id' => 17, 'customdir' => ''];
+        ob_start();
+        try {
+            report_customsql_copy_csv_to_customdir($report, time(), $source);
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertFileDoesNotExist($customroot . DIRECTORY_SEPARATOR . '17-' . basename($source));
+
+        // A no-data run must reset the CSV destination, never the configured file path.
+        $customdirectory = $customroot . DIRECTORY_SEPARATOR . 'muc';
+        mkdir($customdirectory);
+        $configfile = $customdirectory . DIRECTORY_SEPARATOR . 'config.php';
+        file_put_contents($configfile, 'protected config');
+        $reportcsv = $configfile . '.csv';
+        $report = (object) [
+            'id' => 18,
+            'customdir' => 'muc' . DIRECTORY_SEPARATOR . 'config.php',
+            'runable' => 'daily',
+            'at' => 0,
+            'singlerow' => 0,
+        ];
+
+        ob_start();
+        try {
+            report_customsql_copy_csv_to_customdir($report, time(), $source);
+            report_customsql_copy_csv_to_customdir($report, time());
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertSame('protected config', file_get_contents($configfile));
+        $this->assertFileExists($reportcsv);
+        $this->assertSame('', file_get_contents($reportcsv));
+
+        // A no-data run must leave an existing directory export unchanged.
+        $directorytarget = $customroot . DIRECTORY_SEPARATOR . 'directorytarget';
+        mkdir($directorytarget);
+        $directorycsv = $directorytarget . DIRECTORY_SEPARATOR . '18-accumulate.csv';
+        file_put_contents($directorycsv, 'accumulated data');
+        $report->customdir = 'directorytarget';
+        $report->singlerow = 1;
+        ob_start();
+        try {
+            report_customsql_copy_csv_to_customdir($report, time());
+        } finally {
+            ob_end_clean();
+        }
+        $this->assertSame('accumulated data', file_get_contents($directorycsv));
+
+        // Reject sibling paths that only share the export root prefix.
+        $evilroot = $customroot . '_evil';
+        mkdir($evilroot);
+        $this->assertNull(report_customsql_get_allowed_customdir_path($evilroot . DIRECTORY_SEPARATOR . 'report.csv'));
+
+        // Reject an existing symlink at the final file target.
+        $symlinktarget = $customroot . DIRECTORY_SEPARATOR . 'symlink.csv';
+        $outsidefile = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql-outside.csv';
+        file_put_contents($outsidefile, 'outside');
+        symlink($outsidefile, $symlinktarget);
+        $report = (object) ['id' => 19, 'customdir' => 'symlink.csv'];
+        ob_start();
+        try {
+            report_customsql_copy_csv_to_customdir($report, time(), $source);
+        } finally {
+            ob_end_clean();
+        }
+        $this->assertSame('outside', file_get_contents($outsidefile));
+    }
+
+    /**
+     * Test scheduled reports are not exported when no custom path is configured.
+     *
+     * @covers ::report_customsql_generate_csv
+     */
+    public function test_report_customsql_scheduled_report_without_customdir_is_not_exported(): void {
+        global $CFG, $DB;
+
+        $this->resetAfterTest();
+
+        $customroot = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql_exportroot';
+        mkdir($customroot, 0777, true);
+        set_config('exportroot', $customroot, 'report_customsql');
+
+        $reportid = $this->create_a_database_row('daily', 0, 1, null);
+        $DB->set_field('report_customsql_queries', 'querysql', 'SELECT id FROM {report_customsql_queries} WHERE id = -1', [
+            'id' => $reportid,
+        ]);
+        $report = $DB->get_record('report_customsql_queries', ['id' => $reportid], '*', MUST_EXIST);
+
+        ob_start();
+        try {
+            report_customsql_generate_csv($report, time());
+        } finally {
+            ob_end_clean();
+        }
+
+        $this->assertSame([], glob($customroot . DIRECTORY_SEPARATOR . '*.csv'));
+    }
 }

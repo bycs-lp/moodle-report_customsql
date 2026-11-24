@@ -340,37 +340,32 @@ class report_customsql_edit_form extends moodleform {
         }
 
         if (!empty($data['customdir'])) {
-            $path = report_customsql_get_allowed_customdir_path($data['customdir']);
-            if ($path === null) {
-                $errors['customdir'] = get_string('customdirnotallowed', 'report_customsql', s($data['customdir']));
-            }
+            $customdir = trim($data['customdir']);
+            $requiresdirectory = str_ends_with($customdir, DIRECTORY_SEPARATOR) || str_ends_with($customdir, '/');
+            $resolution = report_customsql_resolve_customdir_path($customdir);
 
-            if (empty($errors['customdir'])) {
-                // The path either needs to be a writable directory ...
+            if ($resolution['status'] === 'missingparent') {
+                if ($requiresdirectory) {
+                    $errors['customdir'] = get_string('customdirmustexist', 'report_customsql', s($customdir));
+                } else {
+                    $errors['customdir'] = get_string('customdirnotadirectory', 'report_customsql', s(dirname($customdir)));
+                }
+            } else if ($resolution['status'] !== 'valid') {
+                $errors['customdir'] = get_string('customdirnotallowed', 'report_customsql', s($data['customdir']));
+            } else {
+                $path = $resolution['path'];
                 if (is_dir($path)) {
                     if (!is_writable($path)) {
                         $errors['customdir'] = get_string('customdirnotwritable', 'report_customsql', s($path));
                     }
-                } else if (substr($path, -1) == DIRECTORY_SEPARATOR) {
-                    // ... and it must exist...
+                } else if ($requiresdirectory) {
                     $errors['customdir'] = get_string('customdirmustexist', 'report_customsql', s($path));
-                } else {
-                    // ... or be a path to a writable file, or a new file in a writable directory.
-                    $dir = dirname($path);
-
-                    if (!is_dir($dir)) {
-                        $errors['customdir'] = get_string('customdirnotadirectory', 'report_customsql', s($dir));
-                    } else {
-                        if (file_exists($path)) {
-                            if (!is_writable($path)) {
-                                $errors['customdir'] = get_string('filenotwritable', 'report_customsql', s($path));
-                            }
-                        } else {
-                            if (!is_writable($dir)) {
-                                $errors['customdir'] = get_string('customdirmustexist', 'report_customsql', s($dir));
-                            }
-                        }
+                } else if (file_exists($path)) {
+                    if (!is_writable($path)) {
+                        $errors['customdir'] = get_string('filenotwritable', 'report_customsql', s($path));
                     }
+                } else if (!is_writable(dirname($path))) {
+                    $errors['customdir'] = get_string('customdirmustexist', 'report_customsql', s(dirname($path)));
                 }
             }
         }

@@ -637,6 +637,7 @@ final class report_test extends \advanced_testcase {
      * Test that customdir exports are confined to the configured export root.
      *
      * @covers ::report_customsql_get_allowed_customdir_root
+     * @covers ::report_customsql_resolve_customdir_path
      * @covers ::report_customsql_get_allowed_customdir_path
      */
     public function test_report_customsql_customdir_requires_configured_exportroot(): void {
@@ -663,11 +664,9 @@ final class report_test extends \advanced_testcase {
         mkdir(dirname($allowedincustomroot), 0777, true);
         file_put_contents($allowedincustomroot, 'ok');
 
-        // Test that the configured export root is returned, and that paths are resolved relative to it.
-        $this->assertSame(
-            realpath($customroot),
-            report_customsql_get_allowed_customdir_path('')
-        );
+        // An empty customdir means no export; it must not resolve to the export root.
+        $this->assertSame('empty', report_customsql_resolve_customdir_path('')['status']);
+        $this->assertNull(report_customsql_get_allowed_customdir_path(''));
         $this->assertSame(
             realpath($allowedincustomroot),
             report_customsql_get_allowed_customdir_path($allowedincustomroot)
@@ -681,7 +680,7 @@ final class report_test extends \advanced_testcase {
         ));
         $this->assertNull(report_customsql_get_allowed_customdir_path('/tmp/escape.csv'));
 
-        // With no customdir, the generated CSV is copied into exportroot.
+        // An empty customdir must not trigger an export.
         $source = $CFG->tempdir . DIRECTORY_SEPARATOR . 'customsql-source.csv';
         file_put_contents($source, 'csv data');
         $report = (object) ['id' => 17, 'customdir' => ''];
@@ -692,9 +691,7 @@ final class report_test extends \advanced_testcase {
             ob_end_clean();
         }
 
-        $exported = $customroot . DIRECTORY_SEPARATOR . '17-' . basename($source);
-        $this->assertFileExists($exported);
-        $this->assertSame('csv data', file_get_contents($exported));
+        $this->assertFileDoesNotExist($customroot . DIRECTORY_SEPARATOR . '17-' . basename($source));
 
         // A no-data run must reset the CSV destination, never the configured file path.
         $customdirectory = $customroot . DIRECTORY_SEPARATOR . 'muc';
@@ -721,6 +718,40 @@ final class report_test extends \advanced_testcase {
         $this->assertSame('protected config', file_get_contents($configfile));
         $this->assertFileExists($reportcsv);
         $this->assertSame('', file_get_contents($reportcsv));
+
+        // A no-data run must leave an existing directory export unchanged.
+        $directorytarget = $customroot . DIRECTORY_SEPARATOR . 'directorytarget';
+        mkdir($directorytarget);
+        $directorycsv = $directorytarget . DIRECTORY_SEPARATOR . '18-accumulate.csv';
+        file_put_contents($directorycsv, 'accumulated data');
+        $report->customdir = 'directorytarget';
+        $report->singlerow = 1;
+        ob_start();
+        try {
+            report_customsql_copy_csv_to_customdir($report, time());
+        } finally {
+            ob_end_clean();
+        }
+        $this->assertSame('accumulated data', file_get_contents($directorycsv));
+
+        // Reject sibling paths that only share the export root prefix.
+        $evilroot = $customroot . '_evil';
+        mkdir($evilroot);
+        $this->assertNull(report_customsql_get_allowed_customdir_path($evilroot . DIRECTORY_SEPARATOR . 'report.csv'));
+
+        // Reject an existing symlink at the final file target.
+        $symlinktarget = $customroot . DIRECTORY_SEPARATOR . 'symlink.csv';
+        $outsidefile = $CFG->dataroot . DIRECTORY_SEPARATOR . 'customsql-outside.csv';
+        file_put_contents($outsidefile, 'outside');
+        symlink($outsidefile, $symlinktarget);
+        $report = (object) ['id' => 19, 'customdir' => 'symlink.csv'];
+        ob_start();
+        try {
+            report_customsql_copy_csv_to_customdir($report, time(), $source);
+        } finally {
+            ob_end_clean();
+        }
+        $this->assertSame('outside', file_get_contents($outsidefile));
     }
 
     /**
